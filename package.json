@@ -1,0 +1,58 @@
+{
+  "name": "fotozzz",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "Simple telegram bot",
+  "main": "dist/main.js",
+  "types": "dist/main.d.ts",
+  "scripts": {
+    "format": "prettier -w \"src/**/*.ts\"",
+    "lint": "eslint \"src/**/*.ts\"",
+    "clean": "rimraf .cache .rollup.cache dist",
+    "prebuild": "npm run clean",
+    "build": "rollup -c",
+    "build:watch": "rollup -c -w",
+    "config:generate": "npx @app-config/cli generate",
+    "config:create-schema": "npx @app-config/cli create-schema --format json",
+    "config:create": "npx @app-config/cli create --format json --secrets",
+    "config:vars": "npx @app-config/cli vars",
+    "start": "node dist/main.js",
+    "start:watch": "nodemon -q -w dist dist/main.js"
+  },
+  "dependencies": {
+    "@app-config/main": "^2.8.7",
+    "@telegraf/session": "^2.0.0-beta.6",
+    "hpagent": "^1.2.0",
+    "ioredis": "^5.3.2",
+    "pg": "^8.11.3",
+    "redis": "^4.6.10",
+    "telegraf": "^4.15.0",
+    "uuid": "^9.0.1",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-json": "^6.0.0",
+    "@rollup/plugin-terser": "^0.4.3",
+    "@rollup/plugin-typescript": "^11.1.2",
+    "@types/node": "^18.15.11",
+    "@types/pg": "^8.10.8",
+    "@types/pg-pool": "^2.0.3",
+    "@typescript-eslint/eslint-plugin": "^5.61.0",
+    "@typescript-eslint/parser": "^5.61.0",
+    "eslint": "^8.44.0",
+    "eslint-config-prettier": "^8.8.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "nodemon": "^2.0.22",
+    "prettier": "^3.0.0",
+    "rimraf": "^5.0.0",
+    "rollup": "^3.26.3",
+    "rollup-plugin-analyzer": "^4.0.0",
+    "terser": "^5.19.2",
+    "tslib": "^2.6.0",
+    "typegram": "^5.2.0",
+    "typescript": "^5.0.4"
+  },
+  "imports": {
+    "#package.json": "./package.json"
+  }
+}

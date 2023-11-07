@@ -1,0 +1,35 @@
+type: object
+additionalProperties: false
+properties:
+  redisUrl:
+    $ref: '#/definitions/RedisUrl'
+  postgresUrl:
+    $ref: '#/definitions/PostgresUrl'
+  botToken:
+    $ref: '#/definitions/BotToken'
+  useProxy:
+    $ref: '#/definitions/UseProxy'
+  proxyUrl:
+    $ref: '#/definitions/ProxyUrl'
+required:
+  - redisUrl
+  - postgresUrl
+  - botToken
+  - useProxy
+  - proxyUrl
+definitions:
+  RedisUrl:
+    type: string
+    secret: true
+  PostgresUrl:
+    type: string
+    secret: true
+  BotToken:
+    type: string
+    secret: true
+  UseProxy:
+    type: boolean
+  ProxyUrl:
+    type: string
+    secret: true
+
