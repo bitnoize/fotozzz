@@ -19,7 +19,8 @@ export const bootstrap = async (): Promise<void> => {
   const app = new App({
     botToken,
     useProxy,
-    proxyUrl
+    proxyUrl,
+    redisUrl
   })
 
   await app.start()

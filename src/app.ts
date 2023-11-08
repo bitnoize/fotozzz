@@ -1,18 +1,17 @@
-import { Context, Markup, Scenes, session, Telegraf } from 'telegraf'
+import { ContextMessageUpdate, Scenes, session, Telegraf } from 'telegraf'
+import { Redis } from '@telegraf/session/redis'
 import { HttpsProxyAgent } from 'hpagent'
-import { AppOptions } from './interfaces/app.js'
-import { RedisService } from './services/redis.js'
-import { PostgresService } from './services/postgres.js'
+import { AppOptions, Controller, AppContext } from './interfaces/app.js'
+import { authorize } from './middlewares/authorize.js'
+import { MainController } from './controllers/main.js'
+import { RegisterController } from './controllers/register.js'
 import { logger } from './logger.js'
-
 
 export class App {
   private bot: Telegraf
-  private redisService = RedisService.instance()
-  private postgresService = PostgresService.instance()
 
   constructor(private readonly options: AppOptions) {
-    const { botToken, useProxy, proxyUrl } = this.options
+    const { botToken, useProxy, proxyUrl, redisUrl } = this.options
 
     const proxyAgentOptions = {
       proxy: proxyUrl
@@ -32,23 +31,54 @@ export class App {
       telegrafOptions.telegram.attachmentAgent = agent
     }
 
-    this.bot = new Telegraf(botToken, telegrafOptions)
+    const store = Redis({
+      url: redisUrl
+    })
 
-    this.bot.command('start', this.commandStart)
+    this.bot = new Telegraf<AppContext>(botToken, telegrafOptions)
+
+    this.bot.use(session({ store }))
+
+    const controllers: Controller[] = []
+
+    controllers.push(new MainController(this.options))
+    controllers.push(new RegisterController(this.options))
+
+    const stage = new Scenes.Stage<AppContext>(
+      controllers.map((controller) => controller.scene)
+    )
+
+    this.bot.use(stage.middleware());
+
+    this.bot.use(authorize)
+
+    this.bot.command('start', this.startHandler)
+
+    this.bot.catch((error) => {
+      logger.error(`Global exception: ${error}`)
+    })
 
     logger.info(`App initialized`)
   }
 
-  commandStart = async (ctx: Context): Promise<void> => {
-    await ctx.scene.enter('register')
-  }
-
   async start(): Promise<void> {
-    //await this.postgresService.checkConnection()
-
     await this.bot.launch()
 
     process.once('SIGINT', () => this.bot.stop('SIGINT'))
     process.once('SIGTERM', () => this.bot.stop('SIGTERM'))
+  }
+
+  private startHandler = async (ctx: ContextMessageUpdate): Promise<void> => {
+    const user = ctx.session.user
+
+    if (user === undefined) {
+      throw new Error(`Fail to get user from session`)
+    }
+
+    if (user.status === 'blank') {
+      await ctx.scene.enter('register-wizard')
+    } else {
+      await ctx.scene.enter('main-scene')
+    }
   }
 }
