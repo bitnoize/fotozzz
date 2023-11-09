@@ -11,12 +11,15 @@ properties:
     $ref: '#/definitions/UseProxy'
   proxyUrl:
     $ref: '#/definitions/ProxyUrl'
+  groupChatId:
+    $ref: '#/definitions/GroupChatId'
 required:
   - redisUrl
   - postgresUrl
   - botToken
   - useProxy
   - proxyUrl
+  - groupChatId
 definitions:
   RedisUrl:
     type: string
@@ -32,4 +35,6 @@ definitions:
   ProxyUrl:
     type: string
     secret: true
+  GroupChatId:
+    type: number
 

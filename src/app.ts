@@ -1,4 +1,4 @@
-import { ContextMessageUpdate, Scenes, session, Telegraf } from 'telegraf'
+import { Scenes, session, Telegraf } from 'telegraf'
 import { Redis } from '@telegraf/session/redis'
 import { HttpsProxyAgent } from 'hpagent'
 import { AppOptions, Controller, AppContext } from './interfaces/app.js'
@@ -8,7 +8,7 @@ import { RegisterController } from './controllers/register.js'
 import { logger } from './logger.js'
 
 export class App {
-  private bot: Telegraf
+  private bot: Telegraf<AppContext>
 
   constructor(private readonly options: AppOptions) {
     const { botToken, useProxy, proxyUrl, redisUrl } = this.options
@@ -39,7 +39,7 @@ export class App {
 
     this.bot.use(session({ store }))
 
-    const controllers: Controller[] = []
+    const controllers = []
 
     controllers.push(new MainController(this.options))
     controllers.push(new RegisterController(this.options))
@@ -68,7 +68,7 @@ export class App {
     process.once('SIGTERM', () => this.bot.stop('SIGTERM'))
   }
 
-  private startHandler = async (ctx: ContextMessageUpdate): Promise<void> => {
+  private startHandler = async (ctx: AppContext): Promise<void> => {
     const user = ctx.session.user
 
     if (user === undefined) {
@@ -76,7 +76,7 @@ export class App {
     }
 
     if (user.status === 'blank') {
-      await ctx.scene.enter('register-wizard')
+      await ctx.scene.enter('register-scene')
     } else {
       await ctx.scene.enter('main-scene')
     }

@@ -1,6 +1,6 @@
-import { UserGender, UserStatus, UserRole } from './users.js'
+import { UserGender, UserStatus, UserRole } from './user.js'
 
-export interface PostgresOptions {
+export interface PostgresServiceOptions {
   postgresUrl: string
 }
 
@@ -10,7 +10,7 @@ export interface PostgresSerial {
 
 export interface PostgresUser {
   'id': number
-  'ig_id': number
+  'tg_id': number
   'nick': string | null
   'gender': UserGender | null
   'status': UserStatus

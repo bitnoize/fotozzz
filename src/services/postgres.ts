@@ -4,7 +4,7 @@ import {
   PostgresSerial,
   PostgresUser
 } from '../interfaces/postgres.js'
-import { User } from '../interfaces/user.js'
+import { User, UserGender } from '../interfaces/user.js'
 import {
   USER_FIELDS,
   USER_GENDERS,
@@ -103,7 +103,7 @@ export class PostgresService {
 
       return user
     } catch (error) {
-      console.error(error)
+      logger.error(error.toString())
 
       return undefined
     } finally {
@@ -120,9 +120,9 @@ export class PostgresService {
         [nick]
       )
 
-      return result.rowCount > 0 ? false : true
+      return result.rowCount === 0 ? true : false
     } catch (error) {
-      logger.error(error)
+      logger.error(error.toString)
 
       return undefined
     } finally {
@@ -133,7 +133,10 @@ export class PostgresService {
   async activateUser(
     id: number,
     nick: string,
-    about: string
+    gender: UserGender,
+    avatar: string,
+    about: string,
+    inviteLink: string
   ): Promise<User | undefined> {
     const client = await this.pool.connect()
 
@@ -173,7 +176,7 @@ export class PostgresService {
 
       const resultUpdate = await client.query(
         this.activateUserUpdateSql,
-        [nick, about, id]
+        [nick, gender, avatar, about, inviteLink, id]
       )
 
       if (resultUpdate.rowCount === 0) {
@@ -200,7 +203,35 @@ export class PostgresService {
 
       return user
     } catch (error) {
-      console.error(error)
+      logger.error(error.toString())
+
+      return undefined
+    } finally {
+      client.release()
+    }
+  }
+
+  async getInviteLink(id: number): Promise<string | undefined> {
+    const client = await this.pool.connect()
+
+    try {
+      const result = await client.query(
+        this.getInviteLinkSelectSql,
+        [id]
+      )
+
+      if (result.rowCount !== 1) {
+        throw new Error(`user not found`)
+      }
+
+      const resultRow = result.rows.shift()
+      if (!(resultRow != null && resultRow['invite_link'] != null)) {
+        throw new Error(`userRow not found`)
+      }
+
+      return resultRow['invite_link']
+    } catch (error) {
+      logger.error(error.toString)
 
       return undefined
     } finally {
@@ -273,6 +304,7 @@ SELECT
   ${USER_FIELDS.join(', ')}
 FROM users
 WHERE tg_id = $1
+FOR SHARE
 `
 
   private readonly authorizeUserInsertSql = `
@@ -287,6 +319,7 @@ SELECT
   ${USER_FIELDS.join(', ')}
 FROM users
 WHERE id = $1
+FOR SHARE
 `
 
   private readonly checkUserNickSelectSql = `
@@ -308,10 +341,14 @@ SELECT id FROM users WHERE nick = $1 FOR SHARE
   private readonly activateUserUpdateSql = `
 UPDATE users SET
   nick = $1,
+  gender = $2,
   status = 'active',
   last_activity = NOW(),
-  about = $2
-WHERE id = $3
+  avatar = $3,
+  about = $4,
+  invite_link = $5
+WHERE id = $6
+RETURNING id
 `
 
   private readonly activateUserSelectUpdatedSql = `
@@ -320,5 +357,9 @@ SELECT
 FROM users
 WHERE id = $1
 FOR SHARE
+`
+
+  private readonly getInviteLinkSelectSql = `
+SELECT invite_link FROM users WHERE id = $1
 `
 }

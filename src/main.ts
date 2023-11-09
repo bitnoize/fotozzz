@@ -6,7 +6,14 @@ import { App } from './app.js'
 export const bootstrap = async (): Promise<void> => {
   await loadConfig()
 
-  const { redisUrl, postgresUrl, botToken, useProxy, proxyUrl } = config
+  const {
+    redisUrl,
+    postgresUrl,
+    botToken,
+    useProxy,
+    proxyUrl,
+    groupChatId
+  } = config
 
   RedisService.register({
     redisUrl
@@ -20,7 +27,8 @@ export const bootstrap = async (): Promise<void> => {
     botToken,
     useProxy,
     proxyUrl,
-    redisUrl
+    redisUrl,
+    groupChatId
   })
 
   await app.start()

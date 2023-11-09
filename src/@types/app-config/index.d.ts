@@ -6,6 +6,7 @@ export interface Config {
   botToken: string
   useProxy: boolean
   proxyUrl: string
+  groupChatId: number
 }
 
 declare module '@app-config/main' {

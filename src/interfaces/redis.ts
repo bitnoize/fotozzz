@@ -1,3 +1,3 @@
-export interface RedisOptions {
+export interface RedisServiceOptions {
   redisUrl: string
 }
