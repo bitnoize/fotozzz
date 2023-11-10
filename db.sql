@@ -22,9 +22,8 @@ CREATE TABLE users (
   role                user_role NOT NULL DEFAULT 'user',
   register_date       TIMESTAMPTZ NOT NULL,
   last_activity       TIMESTAMPTZ NOT NULL,
-  avatar              TEXT,
+  avatar              VARCHAR(128),
   about               TEXT,
-  invite_link         TEXT,
 
   PRIMARY KEY(id),
   UNIQUE(tg_id),

@@ -5,12 +5,8 @@ import {
   PostgresUser
 } from '../interfaces/postgres.js'
 import { User, UserGender } from '../interfaces/user.js'
-import {
-  USER_FIELDS,
-  USER_GENDERS,
-  USER_STATUSES,
-  USER_ROLES
-} from '../constants.js'
+import { USER_FIELDS } from '../constants.js'
+import { isPostgresSerial, isPostgresUser } from '../helpers.js'
 import { logger } from '../logger.js'
 
 export class PostgresService {
@@ -71,7 +67,7 @@ export class PostgresService {
         }
 
         const postgresSerial = resultInsert.rows.shift()
-        if (!this.validatePostgresSerial(postgresSerial)) {
+        if (!isPostgresSerial(postgresSerial)) {
           throw new Error(`postgresSerial validation failed`)
         }
 
@@ -85,14 +81,14 @@ export class PostgresService {
         }
 
         const postgresUser = resultSelectInserted.rows.shift()
-        if (!this.validatePostgresUser(postgresUser)) {
+        if (!isPostgresUser(postgresUser)) {
           throw new Error(`postgresUser validation failed`)
         }
 
         user = this.buildUser(postgresUser)
       } else {
         const postgresUser = resultSelectExists.rows.shift()
-        if (!this.validatePostgresUser(postgresUser)) {
+        if (!isPostgresUser(postgresUser)) {
           throw new Error(`postgresUser validation failed`)
         }
 
@@ -135,8 +131,7 @@ export class PostgresService {
     nick: string,
     gender: UserGender,
     avatar: string,
-    about: string,
-    inviteLink: string
+    about: string
   ): Promise<User | undefined> {
     const client = await this.pool.connect()
 
@@ -153,7 +148,7 @@ export class PostgresService {
       }
 
       const postgresUserLock = resultSelectLock.rows.shift()
-      if (!this.validatePostgresUser(postgresUserLock)) {
+      if (!isPostgresUser(postgresUserLock)) {
         throw new Error(`postgresUserLock validation failed`)
       }
 
@@ -176,7 +171,7 @@ export class PostgresService {
 
       const resultUpdate = await client.query(
         this.activateUserUpdateSql,
-        [nick, gender, avatar, about, inviteLink, id]
+        [nick, gender, avatar, about, id]
       )
 
       if (resultUpdate.rowCount === 0) {
@@ -193,7 +188,7 @@ export class PostgresService {
       }
 
       const postgresUser = resultSelectUpdated.rows.shift()
-      if (!this.validatePostgresUser(postgresUser)) {
+      if (!isPostgresUser(postgresUser)) {
         throw new Error(`postgresUser validation failed`)
       }
 
@@ -209,79 +204,6 @@ export class PostgresService {
     } finally {
       client.release()
     }
-  }
-
-  async getInviteLink(id: number): Promise<string | undefined> {
-    const client = await this.pool.connect()
-
-    try {
-      const result = await client.query(
-        this.getInviteLinkSelectSql,
-        [id]
-      )
-
-      if (result.rowCount !== 1) {
-        throw new Error(`user not found`)
-      }
-
-      const resultRow = result.rows.shift()
-      if (!(resultRow != null && resultRow['invite_link'] != null)) {
-        throw new Error(`userRow not found`)
-      }
-
-      return resultRow['invite_link']
-    } catch (error) {
-      logger.error(error.toString)
-
-      return undefined
-    } finally {
-      client.release()
-    }
-  }
-
-  private validatePostgresSerial = (
-    postgresSerial: unknown
-  ): postgresSerial is PostgresSerial => {
-    return (
-      postgresSerial != null &&
-      typeof postgresSerial === 'object' &&
-      'id' in postgresSerial &&
-      typeof postgresSerial['id'] === 'number' &&
-      postgresSerial['id'] > 0
-    )
-  }
-
-  private validatePostgresUser = (
-    postgresUser: unknown
-  ): postgresUser is PostgresUser => {
-    return (
-      postgresUser != null &&
-      typeof postgresUser === 'object' &&
-      'id' in postgresUser &&
-      typeof postgresUser['id'] === 'number' &&
-      postgresUser['id'] > 0 &&
-      'tg_id' in postgresUser &&
-      typeof postgresUser['tg_id'] === 'string' &&
-      'nick' in postgresUser &&
-      (postgresUser['nick'] === null ||
-        typeof postgresUser['nick'] === 'string') &&
-      'gender' in postgresUser &&
-      (postgresUser['gender'] === null ||
-        (typeof postgresUser['gender'] === 'string' &&
-          USER_GENDERS.includes(postgresUser['gender']))) &&
-      'status' in postgresUser &&
-      typeof postgresUser['status'] === 'string' &&
-      USER_STATUSES.includes(postgresUser['status']) &&
-      'role' in postgresUser &&
-      typeof postgresUser['role'] === 'string' &&
-      USER_ROLES.includes(postgresUser['role']) &&
-      'register_date' in postgresUser &&
-      typeof postgresUser['register_date'] === 'object' &&
-      postgresUser['register_date'] instanceof Date &&
-      'last_activity' in postgresUser &&
-      typeof postgresUser['last_activity'] === 'object' &&
-      postgresUser['last_activity'] instanceof Date
-    )
   }
 
   private buildUser = (postgresUser: PostgresUser): User => {
@@ -345,9 +267,8 @@ UPDATE users SET
   status = 'active',
   last_activity = NOW(),
   avatar = $3,
-  about = $4,
-  invite_link = $5
-WHERE id = $6
+  about = $4
+WHERE id = $5
 RETURNING id
 `
 
@@ -357,9 +278,5 @@ SELECT
 FROM users
 WHERE id = $1
 FOR SHARE
-`
-
-  private readonly getInviteLinkSelectSql = `
-SELECT invite_link FROM users WHERE id = $1
 `
 }

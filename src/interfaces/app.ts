@@ -10,22 +10,26 @@ export interface AppOptions {
 }
 
 export interface AppWizardSession extends Scenes.WizardSessionData {
-  nick: string
-  gender: string
-  avatar: string
-  about: string
+  userNick?: string
+  userGender?: string
+  userAvatar?: string
+  userAbout?: string
 }
 
 export interface AppSession extends Scenes.WizardSession<AppWizardSession> {
-  user: User
+  user?: User
 }
 
 export interface AppContext extends Context {
   //appContextProp: string
   session: AppSession
-  scene: Scenes.SceneContextScene<AppContext, AppWizardSession>;
+  scene: Scenes.SceneContextScene<AppContext, AppWizardSession>
   wizard: Scenes.WizardContextWizard<AppContext>
 }
 
-export interface Controller {}
+export type AppContextHandler = (
+  ctx: AppContext,
+  next: () => Promise<void>
+) => Promise<void>
 
+export interface Controller {}

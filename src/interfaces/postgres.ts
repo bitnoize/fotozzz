@@ -5,16 +5,16 @@ export interface PostgresServiceOptions {
 }
 
 export interface PostgresSerial {
-  'id': number
+  id: number
 }
 
 export interface PostgresUser {
-  'id': number
-  'tg_id': number
-  'nick': string | null
-  'gender': UserGender | null
-  'status': UserStatus
-  'role': UserRole
-  'register_date': Date
-  'last_activity': Date
+  id: number
+  tg_id: number
+  nick: string | null
+  gender: UserGender | null
+  status: UserStatus
+  role: UserRole
+  register_date: Date
+  last_activity: Date
 }

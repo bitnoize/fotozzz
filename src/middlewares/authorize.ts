@@ -1,7 +1,7 @@
-import { AppContext } from '../interfaces/app.js'
+import { AppContextHandler } from '../interfaces/app.js'
 import { PostgresService } from '../services/postgres.js'
 
-export const authorize = async (ctx: AppContext, next: Function): Promise<void> => {
+export const authorize: AppContextHandler = async (ctx, next) => {
   const postgresService = PostgresService.instance()
 
   const user = await postgresService.authorizeUser(ctx.from.id)

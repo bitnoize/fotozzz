@@ -1,6 +1,6 @@
 import { Context, Scenes, Markup } from 'telegraf'
 import { AppOptions, AppContext } from '../interfaces/app.js'
-import { BaseController} from './base.js'
+import { BaseController } from './base.js'
 import { logger } from '../logger.js'
 
 export class MainController extends BaseController {
@@ -14,53 +14,45 @@ export class MainController extends BaseController {
     this.scene.enter(this.enterSceneHandler)
     this.scene.leave(this.leaveSceneHandler)
 
-    this.scene.command('start', this.startCommandHandler)
-    this.scene.command('invite', this.inviteCommandHandler)
+    this.scene.hears('Я уже в группе', this.checkGroupMemberHandler)
+    this.scene.hears('Ссылка на группу', this.getInviteLinkHandler)
   }
 
   private enterSceneHandler = async (ctx: AppContext): Promise<void> => {
-    await ctx.reply('Главная сцена')
+    await ctx.reply('Главное меню')
   }
 
   private leaveSceneHandler = async (ctx: AppContext): Promise<void> => {
-    await ctx.reply('Выход из главной сцены')
+    await ctx.reply('Выход из главного меню')
   }
 
-  private inviteCommandHandler = async (ctx: AppContext): Promise<void> => {
-    const user = ctx.session.user
+  private getInviteLinkHandler = async (ctx: AppContext): Promise<void> => {
+    const { groupChatId } = this.options
 
-    if (user === undefined) {
-      throw new Error(`Session user lost`)
-    }
+    const chat = await ctx.telegram.getChat(groupChatId)
+    console.log(chat)
 
-    const inviteLink = await this.postgresService.getInviteLink(user.id)
-
-    if (inviteLink === undefined) {
-      await ctx.reply('Что-то пошло не так...')
-    } else {
-      await ctx.reply(inviteLink)
-    }
+    await ctx.reply('BLABLA')
   }
 
-  private startCommandHandler = async (ctx: AppContext): Promise<void> => {
+  private checkGroupMemberHandler = async (ctx: AppContext): Promise<void> => {
     const { groupChatId } = this.options
 
     const member = await ctx.telegram.getChatMember(groupChatId, ctx.from.id)
 
     if (member.status === 'left') {
       await ctx.reply(
-        'Похоже, ты не вошел в группу',
+        'Похоже ты еще не в группе',
         Markup.keyboard([
-          Markup.button.text('/start'),
-          Markup.button.text('/invite')
-        ])
-        .resize()
+          Markup.button.text('Я уже в группе'),
+          Markup.button.text('Ссылка на группу')
+        ]).resize()
       )
     } else {
       await ctx.reply(
         'Ура, ты в группе!',
         Markup.keyboard([
-          Markup.button.text('/start'),
+          Markup.button.text('/profile')
         ])
         .resize()
       )

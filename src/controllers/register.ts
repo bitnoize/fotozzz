@@ -1,7 +1,8 @@
 import { Scenes, Composer, Markup } from 'telegraf'
 import { AppOptions, AppContext } from '../interfaces/app.js'
-import { UserGender } from '../interfaces/user.js'
-import { BaseController} from './base.js'
+import { BaseController } from './base.js'
+import { isUserGender, isUserNick, isUserAbout } from '../helpers.js'
+import { USER_GENDERS } from '../constants.js'
 import { logger } from '../logger.js'
 
 export class RegisterController extends BaseController {
@@ -10,7 +11,7 @@ export class RegisterController extends BaseController {
   constructor(options: AppOptions) {
     super(options)
 
-    this.scene = new Scenes.WizardScene(
+    this.scene = new Scenes.WizardScene<AppContext>(
       'register-scene',
       this.queryNickHandler,
       this.replyNickComposer(),
@@ -23,16 +24,7 @@ export class RegisterController extends BaseController {
       this.completeHandler
     )
 
-    //this.scene.enter(this.enterSceneHandler)
-    //this.scene.leave(this.leaveSceneHandler)
-  }
-
-  private enterSceneHandler = async (ctx: AppContext): Promise<void> => {
-    await ctx.reply('Ответь на несколько вопросов, чтобы пройти регистрацию')
-  }
-
-  private leaveSceneHandler = async (ctx: AppContext): Promise<void> => {
-    await ctx.reply('Регистрация окончена, спасибо!')
+    this.scene.use(Composer.catch(this.exceptionHandler))
   }
 
   private queryNickHandler = async (ctx: AppContext): Promise<void> => {
@@ -50,28 +42,32 @@ export class RegisterController extends BaseController {
   }
 
   private replyNickTextHandler = async (
-    ctx: AppContext
-  ): Promise<Scenes.WizardContextWizard<AppContext> | undefined> => {
-    const text = ctx.message.text
+    ctx: AppContext,
+    next: () => Promise<void>
+  ): Promise<void> => {
+    const userNick = ctx.message.text
 
-    if (text != null && text.match(/^[a-z0-9_]{4,20}$/i)) {
-      const nick = text.toLowerCase()
+    if (isUserNick(userNick)) {
+      const userNickLowerCase = userNick.toLowerCase()
 
-      const check = await this.postgresService.checkUserNick(nick)
+      const check = await this.postgresService.checkUserNick(userNickLowerCase)
 
       if (check !== undefined) {
         if (check) {
-          ctx.scene.state.nick = nick
+          ctx.scene.state.userNick = userNickLowerCase
 
-          return ctx.wizard.next()
+          ctx.wizard.next()
+          if (typeof ctx.wizard.step === 'function') {
+            return ctx.wizard.step(ctx, next)
+          }
         } else {
           await ctx.reply('Этот ник уже используется, выбери другой')
         }
       } else {
-        await ctx.reply('Что-то пошло не так, попробуй еще раз')
+        await ctx.reply('Ошибка в базе, попробуй еще раз')
       }
     } else {
-      await ctx.reply('Неверный ввод, используй латинские буквы и цифры, 4-20 символов')
+      await ctx.reply('Неверный ввод, используй латинские буквы и цифры, от 4 до 20 символов')
     }
   }
 
@@ -85,7 +81,7 @@ export class RegisterController extends BaseController {
       Markup.inlineKeyboard([
         Markup.button.callback('Мужской', 'male'),
         Markup.button.callback('Женский', 'female'),
-        Markup.button.callback('Пара', 'couple')
+        Markup.button.callback('Пара', 'couple'),
       ])
     )
     ctx.wizard.next()
@@ -94,37 +90,32 @@ export class RegisterController extends BaseController {
   private replyGenderComposer = (): Composer<AppContext> => {
     const handler = new Composer<AppContext>()
 
-    handler.action('male', this.replyGenderMaleHandler)
-    handler.action('female', this.replyGenderFemaleHandler)
-    handler.action('couple', this.replyGenderCoupleHandler)
+    handler.action(USER_GENDERS, this.replyGenderActionHandler)
     handler.use(this.replyGenderUnknownHandler)
 
     return handler
   }
 
-  private replyGenderMaleHandler = async (
-    ctx: AppContext
-  ): Promise<Scenes.WizardContextWizard<AppContext> | undefined> => {
-    ctx.scene.state.gender = 'male';
-    return ctx.wizard.next()
-  }
+  private replyGenderActionHandler = async (
+    ctx: AppContext,
+    next: () => Promise<void>
+  ): Promise<void> => {
+    const userGender = ctx.match.input
 
-  private replyGenderFemaleHandler = async (
-    ctx: AppContext
-  ): Promise<Scenes.WizardContextWizard<AppContext> | undefined> => {
-    ctx.scene.state.gender = 'female';
-    return ctx.wizard.next()
-  }
+    if (isUserGender(userGender)) {
+      ctx.scene.state.userGender = userGender
 
-  private replyGenderCoupleHandler = async (
-    ctx: AppContext
-  ): Promise<Scenes.WizardContextWizard<AppContext> | undefined> => {
-    ctx.scene.state.gender = 'couple';
-    return ctx.wizard.next()
+      ctx.wizard.next()
+      if (typeof ctx.wizard.step === 'function') {
+        return ctx.wizard.step(ctx, next)
+      }
+    } else {
+      await ctx.reply('Некорректный ввод, попробуй еще раз')
+    }
   }
 
   private replyGenderUnknownHandler = async (ctx: AppContext): Promise<void> => {
-    await ctx.reply('Используй кнопки в предыдущем сообщении!')
+    await ctx.reply('Используй кнопки в сообщении!')
   }
 
   private queryAvatarHandler = async (ctx: AppContext): Promise<void> => {
@@ -142,22 +133,32 @@ export class RegisterController extends BaseController {
   }
 
   private replyAvatarPhotoHandler = async (
-    ctx: AppContext
-  ): Promise<Scenes.WizardContextWizard<AppContext> | undefined> => {
+    ctx: AppContext,
+    next: () => Promise<void>
+  ): Promise<void> => {
     const photo = ctx.message.photo
 
-    if (photo != null && Array.isArray(photo)) {
-      const photoBest = photo.pop()
+    if (!(photo != null && Array.isArray(photo))) {
+      throw new Error(`response photo malformed`)
+    }
 
-      if (photoBest != null && photoBest['file_id'] != null) {
-        ctx.scene.state.avatar = photoBest['file_id']
+    const photoItem = photo.pop()
 
-        return ctx.wizard.next()
-      } else {
-        await ctx.reply(`Плохая картинка!`)
-      }
-    } else {
-      await ctx.reply(`Плохая картинка!`)
+    if (!(
+      photoItem != null &&
+      typeof photoItem === 'object' &&
+      'file_id' in photoItem &&
+      photoItem['file_id'] != null &&
+      typeof photoItem['file_id'] === 'string'
+    )) {
+      throw new Error(`response photoItem malformed`)
+    }
+
+    ctx.scene.state.userAvatar = photoItem['file_id']
+
+    ctx.wizard.next()
+    if (typeof ctx.wizard.step === 'function') {
+      return ctx.wizard.step(ctx, next)
     }
   }
 
@@ -180,14 +181,18 @@ export class RegisterController extends BaseController {
   }
 
   private replyAboutTextHandler = async (
-    ctx: AppContext
-  ): Promise<Scenes.WizardContextWizard<AppContext> | undefined> => {
-    const text = ctx.message.text
+    ctx: AppContext,
+    next: () => Promise<void>
+  ): Promise<void> => {
+    const userAbout = ctx.message.text
 
-    if (text != null && text.length >= 3 && text.length <= 300) {
-      ctx.scene.state.about = text
-        
-      return ctx.wizard.next()
+    if (isUserAbout(userAbout)) {
+      ctx.scene.state.userAbout = userAbout
+
+      ctx.wizard.next()
+      if (typeof ctx.wizard.step === 'function') {
+        return ctx.wizard.step(ctx, next)
+      }
     } else {
       await ctx.reply(`Неверный ввод, используй 3-300 символов`)
     }
@@ -212,34 +217,39 @@ export class RegisterController extends BaseController {
     }
 
     if (
-      state.nick == null ||
-        state.gender == null ||
-        state.avatar == null ||
-        state.about == null
+      state.userNick == null ||
+      state.userGender == null ||
+      state.userAvatar == null ||
+      state.userAbout == null
     ) {
-      await ctx.reply('Данные потерялись, начинаем сцену заново')
-
-      await ctx.scene.leave()
-      await ctx.scene.enter('register-scene')
+      throw new Error(`Scene data lost`)
     } else {
-      const chatInvite = await ctx.telegram.createChatInviteLink(
-        groupChatId,
-        {
-          'member_limit': 1
-        }
-      )
-
       await this.postgresService.activateUser(
         user.id,
-        state.nick,
-        state.gender as UserGender,
-        state.avatar,
-        state.about,
-        chatInvite['invite_link']
+        state.userNick,
+        state.userGender,
+        state.userAvatar,
+        state.userAbout
       )
+
+      await ctx.reply('Регистрация окончена, спасибо!')
 
       await ctx.scene.leave()
       await ctx.scene.enter('main-scene')
     }
+  }
+
+  private exceptionHandler = async (
+    error: unknown,
+    ctx: AppContext
+  ): Promise<void> => {
+    if (error instanceof Error) {
+      logger.error(`RegisterScene error: ${error.message}`)
+    }
+
+    await ctx.reply('Произошла ошибка, пройди регистрацию еще раз')
+
+    await ctx.scene.leave()
+    await ctx.scene.enter('register-scene')
   }
 }

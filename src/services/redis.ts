@@ -30,5 +30,4 @@ export class RedisService {
 
     return this._instance
   }
-
 }
