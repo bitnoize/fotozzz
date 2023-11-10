@@ -24,7 +24,7 @@ export class RegisterController extends BaseController {
       this.completeHandler
     )
 
-    this.scene.use(Composer.catch(this.exceptionHandler))
+    this.scene.use(Scenes.WizardScene.catch(this.exceptionHandler))
   }
 
   private queryNickHandler = async (ctx: AppContext): Promise<void> => {
@@ -247,9 +247,8 @@ export class RegisterController extends BaseController {
       logger.error(`RegisterScene error: ${error.message}`)
     }
 
-    await ctx.reply('Произошла ошибка, пройди регистрацию еще раз')
+    await ctx.reply('Произошла ошибка, выход из сцены')
 
     await ctx.scene.leave()
-    await ctx.scene.enter('register-scene')
   }
 }

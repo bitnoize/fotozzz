@@ -9,17 +9,40 @@ export class MainController extends BaseController {
   constructor(options: AppOptions) {
     super(options)
 
-    this.scene = new Scenes.BaseScene('main-scene')
+    this.scene = new Scenes.BaseScene<AppContext>('main-scene')
 
     this.scene.enter(this.enterSceneHandler)
-    this.scene.leave(this.leaveSceneHandler)
 
     this.scene.hears('Я уже в группе', this.checkGroupMemberHandler)
     this.scene.hears('Ссылка на группу', this.getInviteLinkHandler)
+
+    this.scene.use(this.unknownCommandHandler)
+    this.scene.use(Scenes.BaseScene.catch(this.exceptionHandler))
   }
 
   private enterSceneHandler = async (ctx: AppContext): Promise<void> => {
-    await ctx.reply('Главное меню')
+    const { groupChatId } = this.options
+
+    const chatMember = await ctx.telegram.getChatMember(groupChatId, ctx.from.id)
+
+    if (chatMember.status === 'left') {
+      await ctx.reply(
+        'Похоже ты еще не в группе',
+        Markup.keyboard([
+          Markup.button.text('Я уже в группе'),
+          Markup.button.text('Ссылка на группу')
+        ])
+        .resize()
+      )
+    } else {
+      await ctx.reply(
+        `Главное меню`,
+        Markup.keyboard([
+          Markup.button.text('Тест')
+        ])
+        .resize()
+      )
+    }
   }
 
   private leaveSceneHandler = async (ctx: AppContext): Promise<void> => {
@@ -27,12 +50,9 @@ export class MainController extends BaseController {
   }
 
   private getInviteLinkHandler = async (ctx: AppContext): Promise<void> => {
-    const { groupChatId } = this.options
+    const { groupChatId, groupLink } = this.options
 
-    const chat = await ctx.telegram.getChat(groupChatId)
-    console.log(chat)
-
-    await ctx.reply('BLABLA')
+    await ctx.reply(groupLink)
   }
 
   private checkGroupMemberHandler = async (ctx: AppContext): Promise<void> => {
@@ -50,12 +70,29 @@ export class MainController extends BaseController {
       )
     } else {
       await ctx.reply(
-        'Ура, ты в группе!',
+        'Главное меню',
         Markup.keyboard([
-          Markup.button.text('/profile')
+          Markup.button.text('Тест')
         ])
         .resize()
       )
     }
+  }
+
+  private unknownCommandHandler = async (ctx: AppContext): Promise<void> => {
+    await ctx.reply('Не понял команду, используй меню!')
+  }
+
+  private exceptionHandler = async (
+    error: unknown,
+    ctx: AppContext
+  ): Promise<void> => {
+    if (error instanceof Error) {
+      logger.error(`MainScene error: ${error.message}`)
+    }
+
+    await ctx.reply('Произошла ошибка, выход из сцены')
+
+    await ctx.scene.leave()
   }
 }

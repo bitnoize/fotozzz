@@ -7,6 +7,7 @@ export interface AppOptions {
   proxyUrl: string
   redisUrl: string
   groupChatId: number
+  groupLink: string
 }
 
 export interface AppWizardSession extends Scenes.WizardSessionData {

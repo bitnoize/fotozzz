@@ -13,6 +13,8 @@ properties:
     $ref: '#/definitions/ProxyUrl'
   groupChatId:
     $ref: '#/definitions/GroupChatId'
+  groupLink:
+    $ref: '#/definitions/GroupLink'
 required:
   - redisUrl
   - postgresUrl
@@ -20,6 +22,7 @@ required:
   - useProxy
   - proxyUrl
   - groupChatId
+  - groupLink
 definitions:
   RedisUrl:
     type: string
@@ -37,4 +40,6 @@ definitions:
     secret: true
   GroupChatId:
     type: number
+  GroupLink:
+    type: string
 

@@ -18,7 +18,10 @@ export class App {
     }
 
     const telegrafOptions = {
-      telegram: {}
+      telegram: {
+        agent?: HttpsProxyAgent,
+        attachmentAgent?: HttpsProxyAgent
+      }
     }
 
     if (useProxy) {
@@ -52,11 +55,11 @@ export class App {
 
     this.bot.use(authorize)
 
-    this.bot.command('start', this.startHandler)
+    this.bot.command('start', this.startCommandHandler)
+    this.bot.on('chat_join_request', this.chatJoinRequestHandler)
 
-    this.bot.catch((error: unknown) => {
-      logger.error(error)
-    })
+    this.bot.use(this.unknownCommandHandler)
+    this.bot.catch(this.exceptionHandler)
 
     logger.info(`App initialized`)
   }
@@ -68,9 +71,8 @@ export class App {
     process.once('SIGTERM', () => this.bot.stop('SIGTERM'))
   }
 
-  private startHandler = async (ctx: AppContext): Promise<void> => {
+  private startCommandHandler = async (ctx: AppContext): Promise<void> => {
     const user = ctx.session.user
-
     if (user === undefined) {
       throw new Error(`Fail to get user from session`)
     }
@@ -79,6 +81,44 @@ export class App {
       await ctx.scene.enter('register-scene')
     } else {
       await ctx.scene.enter('main-scene')
+    }
+  }
+
+  private chatJoinRequestHandler = async (ctx: AppContext): Promise<void> => {
+    const user = ctx.session.user
+    if (user === undefined) {
+      throw new Error(`Fail to get session user`)
+    }
+
+    const { groupChatId, groupLink } = this.options
+
+    if (ctx.chatJoinRequest.chat.id === groupChatId) {
+      if (user.status === 'active') {
+        const resultApprove = await ctx.telegram.approveChatJoinRequest(
+          groupChatId,
+          ctx.from.id
+        )
+
+        if (resultApprove) {
+          await ctx.reply(`Запрос на членство в группе подтвержден`)
+        } else {
+          await ctx.reply(`Запрос на членство в группе отклонен`)
+        }
+      } else {
+        await ctx.reply(`Аккаунт не активирован!`)
+      }
+    } else {
+      await ctx.reply(`Неверная группа!`)
+    }
+  }
+
+  private unknownCommandHandler = async (ctx: AppContext): Promise<void> => {
+    await ctx.reply('Начни работу с ботом командой /start')
+  }
+
+  private exceptionHandler = (error: unknown) => {
+    if (error instanceof Error) {
+      logger.error(`Bot error: ${error.message}`)
     }
   }
 }

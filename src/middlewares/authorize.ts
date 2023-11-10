@@ -7,10 +7,10 @@ export const authorize: AppContextHandler = async (ctx, next) => {
   const user = await postgresService.authorizeUser(ctx.from.id)
 
   if (user === undefined) {
-    await ctx.reply('Что-то пошло не так..')
+    await ctx.reply('Ошибка в базе, попробуй еще раз')
   } else {
     if (user.status === 'banned') {
-      await ctx.reply('Вы забанены!')
+      await ctx.reply('Ты забанен!')
     } else {
       ctx.session.user = user
 
