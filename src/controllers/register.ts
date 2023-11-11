@@ -1,4 +1,5 @@
 import { Scenes, Composer, Markup } from 'telegraf'
+import { message } from 'telegraf/filters'
 import { AppOptions, AppContext } from '../interfaces/app.js'
 import { BaseController } from './base.js'
 import { isUserGender, isUserNick, isUserAbout } from '../helpers.js'
@@ -45,29 +46,29 @@ export class RegisterController extends BaseController {
     ctx: AppContext,
     next: () => Promise<void>
   ): Promise<void> => {
-    const userNick = ctx.message.text
+    if (ctx.has(message('text'))) {
+      const userNick = ctx.message.text.toLowerCase()
 
-    if (isUserNick(userNick)) {
-      const userNickLowerCase = userNick.toLowerCase()
+      if (isUserNick(userNick)) {
+        const check = await this.postgresService.checkUserNick(userNick)
 
-      const check = await this.postgresService.checkUserNick(userNickLowerCase)
+        if (check !== undefined) {
+          if (check) {
+            ctx.scene.state.userNick = userNick
 
-      if (check !== undefined) {
-        if (check) {
-          ctx.scene.state.userNick = userNickLowerCase
-
-          ctx.wizard.next()
-          if (typeof ctx.wizard.step === 'function') {
-            return ctx.wizard.step(ctx, next)
+            ctx.wizard.next()
+            if (typeof ctx.wizard.step === 'function') {
+              return ctx.wizard.step(ctx, next)
+            }
+          } else {
+            await ctx.reply('Этот ник уже используется, выбери другой')
           }
         } else {
-          await ctx.reply('Этот ник уже используется, выбери другой')
+          await ctx.reply('Ошибка в базе, попробуй еще раз')
         }
       } else {
-        await ctx.reply('Ошибка в базе, попробуй еще раз')
+        await ctx.reply('Неверный ввод, используй латинские буквы и цифры, от 4 до 20 символов')
       }
-    } else {
-      await ctx.reply('Неверный ввод, используй латинские буквы и цифры, от 4 до 20 символов')
     }
   }
 
@@ -136,29 +137,27 @@ export class RegisterController extends BaseController {
     ctx: AppContext,
     next: () => Promise<void>
   ): Promise<void> => {
-    const photo = ctx.message.photo
+    if (ctx.has(message('photo'))) {
+      const photo = ctx.message.photo
 
-    if (!(photo != null && Array.isArray(photo))) {
-      throw new Error(`response photo malformed`)
-    }
+      const photoItem = photo.pop()
 
-    const photoItem = photo.pop()
+      if (!(
+        photoItem != null &&
+        typeof photoItem === 'object' &&
+        'file_id' in photoItem &&
+        photoItem['file_id'] != null &&
+        typeof photoItem['file_id'] === 'string'
+      )) {
+        throw new Error(`response photoItem malformed`)
+      }
 
-    if (!(
-      photoItem != null &&
-      typeof photoItem === 'object' &&
-      'file_id' in photoItem &&
-      photoItem['file_id'] != null &&
-      typeof photoItem['file_id'] === 'string'
-    )) {
-      throw new Error(`response photoItem malformed`)
-    }
+      ctx.scene.state.userAvatar = photoItem['file_id']
 
-    ctx.scene.state.userAvatar = photoItem['file_id']
-
-    ctx.wizard.next()
-    if (typeof ctx.wizard.step === 'function') {
-      return ctx.wizard.step(ctx, next)
+      ctx.wizard.next()
+      if (typeof ctx.wizard.step === 'function') {
+        return ctx.wizard.step(ctx, next)
+      }
     }
   }
 
@@ -184,17 +183,19 @@ export class RegisterController extends BaseController {
     ctx: AppContext,
     next: () => Promise<void>
   ): Promise<void> => {
-    const userAbout = ctx.message.text
+    if (ctx.has(message('text'))) {
+      const userAbout = ctx.message.text
 
-    if (isUserAbout(userAbout)) {
-      ctx.scene.state.userAbout = userAbout
+      if (isUserAbout(userAbout)) {
+        ctx.scene.state.userAbout = userAbout
 
-      ctx.wizard.next()
-      if (typeof ctx.wizard.step === 'function') {
-        return ctx.wizard.step(ctx, next)
+        ctx.wizard.next()
+        if (typeof ctx.wizard.step === 'function') {
+          return ctx.wizard.step(ctx, next)
+        }
+      } else {
+        await ctx.reply(`Неверный ввод, используй 3-300 символов`)
       }
-    } else {
-      await ctx.reply(`Неверный ввод, используй 3-300 символов`)
     }
   }
 
