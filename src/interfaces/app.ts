@@ -1,5 +1,5 @@
 import { Context, Scenes } from 'telegraf'
-import { User } from './user.js'
+import { SessionUser, Register } from './user.js'
 
 export interface AppOptions {
   botToken: string
@@ -7,18 +7,21 @@ export interface AppOptions {
   proxyUrl: string
   redisUrl: string
   groupChatId: number
-  groupLink: string
+  groupUrl: string
+  channelChatId: number
+  channelUrl: string
+}
+
+export interface Controller {
+  scene: Scenes.BaseScene<AppContext> | Scenes.WizardScene<AppContext>
 }
 
 export interface AppWizardSession extends Scenes.WizardSessionData {
-  userNick?: string
-  userGender?: string
-  userAvatar?: string
-  userAbout?: string
+  register?: Partial<Register>
 }
 
 export interface AppSession extends Scenes.WizardSession<AppWizardSession> {
-  user?: User
+  user?: SessionUser
 }
 
 export interface AppContext extends Context {
@@ -31,6 +34,9 @@ export interface AppContext extends Context {
 export type AppContextHandler = (
   ctx: AppContext,
   next: () => Promise<void>
-) => Promise<void>
+) => Promise<unknown | void>
 
-export interface Controller {}
+export type AppContextExceptionHandler = (
+  error: unknown,
+  ctx: AppContext,
+) => Promise<unknown | void>

@@ -1,12 +1,13 @@
 import pg from 'pg'
+import { PostgresServiceOptions } from '../interfaces/postgres.js'
+import { SessionUser, User, UserGender } from '../interfaces/user.js'
 import {
-  PostgresServiceOptions,
-  PostgresSerial,
-  PostgresUser
-} from '../interfaces/postgres.js'
-import { User, UserGender } from '../interfaces/user.js'
-import { USER_FIELDS } from '../constants.js'
-import { isPostgresSerial, isPostgresUser } from '../helpers.js'
+  isRowId,
+  isRowSessionUser,
+  isRowUser,
+  buildSessionUser,
+  buildUser
+} from '../helpers/postgres.js'
 import { logger } from '../logger.js'
 
 export class PostgresService {
@@ -43,13 +44,13 @@ export class PostgresService {
     return this._instance
   }
 
-  async authorizeUser(tgId: number): Promise<User | undefined> {
+  async authorizeUser(tgId: number, from: unknown): Promise<SessionUser> {
     const client = await this.pool.connect()
 
     try {
       await client.query('BEGIN')
 
-      let user: User
+      let sessionUser: SessionUser
 
       const resultSelectExists = await client.query(
         this.authorizeUserSelectExistsSql,
@@ -59,68 +60,80 @@ export class PostgresService {
       if (resultSelectExists.rowCount === 0) {
         const resultInsert = await client.query(
           this.authorizeUserInsertSql,
-          [tgId]
+          [tgId, 'register', 'user']
         )
 
         if (resultInsert.rowCount === 0) {
           throw new Error(`no user row inserted`)
         }
 
-        const postgresSerial = resultInsert.rows.shift()
-        if (!isPostgresSerial(postgresSerial)) {
-          throw new Error(`postgresSerial validation failed`)
+        const rowInsert = resultInsert.rows.shift()
+        if (!isRowId(rowInsert)) {
+          throw new Error(`inserted row validation failed`)
         }
 
         const resultSelectInserted = await client.query(
           this.authorizeUserSelectInsertedSql,
-          [postgresSerial.id]
+          [rowInsert['id']]
         )
 
-        if (resultSelectInserted.rowCount !== 1) {
+        if (resultSelectInserted.rowCount === 0) {
           throw new Error(`no user row selected after insert`)
         }
 
-        const postgresUser = resultSelectInserted.rows.shift()
-        if (!isPostgresUser(postgresUser)) {
-          throw new Error(`postgresUser validation failed`)
+        const rowSelectInserted = resultSelectInserted.rows.shift()
+        if (!isRowSessionUser(rowSelectInserted)) {
+          throw new Error(`selected row validation failed`)
         }
 
-        user = this.buildUser(postgresUser)
+        const resultInsertLog = await client.query(
+          this.commonUserLogInsertSql,
+          [
+            rowSelectInserted['id'],
+            rowSelectInserted['id'],
+            'user_register',
+            rowSelectInserted['status'],
+            rowSelectInserted['role'],
+            { from }
+          ]
+        )
+
+        if (resultInsertLog.rowCount === 0) {
+          throw new Error(`no user_log row inserted`)
+        }
+
+        sessionUser = buildSessionUser(rowSelectInserted)
       } else {
-        const postgresUser = resultSelectExists.rows.shift()
-        if (!isPostgresUser(postgresUser)) {
-          throw new Error(`postgresUser validation failed`)
+        const rowSelectExists = resultSelectExists.rows.shift()
+        if (!isRowSessionUser(rowSelectExists)) {
+          throw new Error(`selected row validation failed`)
         }
 
-        user = this.buildUser(postgresUser)
+        sessionUser = buildSessionUser(rowSelectExists)
       }
 
       await client.query('COMMIT')
 
-      return user
+      return sessionUser
     } catch (error) {
-      logger.error(error.toString())
-
-      return undefined
+      throw error
     } finally {
       client.release()
     }
   }
 
-  async checkUserNick(nick: string): Promise<boolean | undefined> {
+  async checkUserNick(nick: string): Promise<boolean> {
     const client = await this.pool.connect()
 
     try {
-      const result = await client.query(
+      const resultSelect = await client.query(
         this.checkUserNickSelectSql,
         [nick]
       )
 
-      return result.rowCount === 0 ? true : false
+      return resultSelect.rowCount === 0 ? true : false
     } catch (error) {
-      logger.error(error.toString)
-
-      return undefined
+      throw error
     } finally {
       client.release()
     }
@@ -130,9 +143,10 @@ export class PostgresService {
     id: number,
     nick: string,
     gender: UserGender,
-    avatar: string,
-    about: string
-  ): Promise<User | undefined> {
+    avatarTgFileId: string,
+    about: string,
+    from: unknown
+  ): Promise<SessionUser> {
     const client = await this.pool.connect()
 
     try {
@@ -144,21 +158,17 @@ export class PostgresService {
       )
 
       if (resultSelectLock.rowCount === 0) {
-        throw new Error(`no select lock`)
+        throw new Error(`no row select lock`)
       }
 
-      const postgresUserLock = resultSelectLock.rows.shift()
-      if (!isPostgresUser(postgresUserLock)) {
-        throw new Error(`postgresUserLock validation failed`)
+      const rowSelectLock = resultSelectLock.rows.shift()
+      if (!isRowSessionUser(rowSelectLock)) {
+        throw new Error(`select row validation failed`)
       }
 
-      const userLock = this.buildUser(postgresUserLock)
-
-      if (userLock.status !== 'blank') {
-        throw new Error(`only blank users can be activated`)
+      if (rowSelectLock['status'] !== 'register') {
+        throw new Error(`only register users can be activated`)
       }
-
-      // ... other checks here
 
       const resultSelectNick = await client.query(
         this.activateUserSelectNickSql,
@@ -166,64 +176,74 @@ export class PostgresService {
       )
 
       if (resultSelectNick.rowCount !== 0) {
-        throw new Error(`nick allready exists`)
+        throw new Error(`register nick allready exists`)
       }
 
       const resultUpdate = await client.query(
         this.activateUserUpdateSql,
-        [nick, gender, avatar, about, id]
+        [
+          nick,
+          gender,
+          avatarTgFileId,
+          about,
+          rowSelectLock['id']
+        ]
       )
 
       if (resultUpdate.rowCount === 0) {
         throw new Error(`no user row updated`)
       }
 
+      const rowUpdate = resultUpdate.rows.shift()
+      if (!isRowId(rowUpdate)) {
+        throw new Error(`updated row validation failed`)
+      }
+
       const resultSelectUpdated = await client.query(
         this.activateUserSelectUpdatedSql,
-        [id]
+        [rowUpdate['id']]
       )
 
-      if (resultSelectUpdated.rowCount !== 1) {
+      if (resultSelectUpdated.rowCount === 0) {
         throw new Error(`no user row selected after update`)
       }
 
-      const postgresUser = resultSelectUpdated.rows.shift()
-      if (!isPostgresUser(postgresUser)) {
-        throw new Error(`postgresUser validation failed`)
+      const rowSelectUpdated = resultSelectUpdated.rows.shift()
+      if (!isRowSessionUser(rowSelectUpdated)) {
+        throw new Error(`selected row validation failed`)
       }
 
-      const user = this.buildUser(postgresUser)
+      const resultInsertLog = await client.query(
+        this.commonUserLogInsertSql,
+        [
+          rowSelectUpdated['id'],
+          rowSelectUpdated['id'],
+          'user_activate',
+          rowSelectUpdated['status'],
+          rowSelectUpdated['role'],
+          { from }
+        ]
+      )
+
+      if (resultInsertLog.rowCount === 0) {
+        throw new Error(`no user_log row inserted`)
+      }
+
+      const sessionUser = buildSessionUser(rowSelectUpdated)
 
       await client.query('COMMIT')
 
-      return user
+      return sessionUser
     } catch (error) {
-      logger.error(error.toString())
-
-      return undefined
+      throw error
     } finally {
       client.release()
     }
   }
 
-  private buildUser = (postgresUser: PostgresUser): User => {
-    const user: User = {
-      id: postgresUser['id'],
-      tgId: postgresUser['tg_id'],
-      nick: postgresUser['nick'],
-      gender: postgresUser['gender'],
-      status: postgresUser['status'],
-      role: postgresUser['role'],
-      registerDate: postgresUser['register_date'],
-      lastActivity: postgresUser['last_activity']
-    }
-
-    return user
-  }
-
   private readonly authorizeUserSelectExistsSql = `
 SELECT
-  ${USER_FIELDS.join(', ')}
+  id, tg_id, nick, gender, status, role, register_time, last_activity_time
 FROM users
 WHERE tg_id = $1
 FOR SHARE
@@ -231,14 +251,14 @@ FOR SHARE
 
   private readonly authorizeUserInsertSql = `
 INSERT INTO users
-  (tg_id, register_date, last_activity)
-VALUES ($1, NOW(), NOW())
+  (tg_id, status, role)
+VALUES ($1, $2, $3)
 RETURNING id
 `
 
   private readonly authorizeUserSelectInsertedSql = `
 SELECT
-  ${USER_FIELDS.join(', ')}
+  id, tg_id, nick, gender, status, role, register_time, last_activity_time
 FROM users
 WHERE id = $1
 FOR SHARE
@@ -250,7 +270,7 @@ SELECT id FROM users WHERE nick = $1
 
   private readonly activateUserSelectLockSql = `
 SELECT
-  ${USER_FIELDS.join(', ')}
+  id, tg_id, nick, gender, status, role, register_time, last_activity_time
 FROM users
 WHERE id = $1
 FOR UPDATE
@@ -265,16 +285,31 @@ UPDATE users SET
   nick = $1,
   gender = $2,
   status = 'active',
-  last_activity = NOW(),
-  avatar = $3,
-  about = $4
+  avatar_tg_file_id = $3,
+  about = $4,
+  last_activity_time = NOW()
 WHERE id = $5
 RETURNING id
 `
 
   private readonly activateUserSelectUpdatedSql = `
 SELECT
-  ${USER_FIELDS.join(', ')}
+  id, tg_id, nick, gender, status, role, register_time, last_activity_time
+FROM users
+WHERE id = $1
+FOR SHARE
+`
+
+  private readonly commonUserLogInsertSql = `
+INSERT INTO user_logs
+  (user_id, mod_user_id, action, status, role, data)
+VALUES ($1, $2, $3, $4, $5, $6)
+`
+
+  private readonly getUserSelectSql = `
+SELECT
+  id, tg_id, nick, gender, status, role, avatar_tg_file_id, about,
+  register_time, last_activity_time
 FROM users
 WHERE id = $1
 FOR SHARE

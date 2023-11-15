@@ -13,7 +13,9 @@ export const bootstrap = async (): Promise<void> => {
     useProxy,
     proxyUrl,
     groupChatId,
-    groupLink
+    groupUrl,
+    channelChatId,
+    channelUrl
   } = config
 
   RedisService.register({
@@ -30,7 +32,9 @@ export const bootstrap = async (): Promise<void> => {
     proxyUrl,
     redisUrl, // FIXME
     groupChatId,
-    groupLink
+    groupUrl,
+    channelChatId,
+    channelUrl
   })
 
   await app.start()

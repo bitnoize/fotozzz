@@ -1,4 +1,4 @@
-import { USER_GENDERS, USER_STATUSES, USER_ROLES } from '../constants.js'
+import { USER_GENDERS, USER_STATUSES, USER_ROLES } from '../constants/user.js'
 
 export type UserGender = (typeof USER_GENDERS)[number]
 export type UserStatus = (typeof USER_STATUSES)[number]
@@ -11,6 +11,28 @@ export interface User {
   gender: UserGender | null
   status: UserStatus
   role: UserRole
-  registerDate: Date
-  lastActivity: Date
+  avatarTgFileId: string | null
+  about: string | null
+  registerTime: Date
+  lastActivityTime: Date
+}
+
+export interface SessionUser {
+  id: number
+  tgId: number
+  nick: string | null
+  gender: UserGender | null
+  status: UserStatus
+  role: UserRole
+  registerTime: Date
+  lastActivityTime: Date
+  isGroupMember: boolean
+  isChannelMember: boolean
+}
+
+export interface Register {
+  nick: string
+  gender: UserGender
+  avatarTgFileId: string
+  about: string
 }

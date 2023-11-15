@@ -1,19 +1,39 @@
 import { Scenes, Composer, Markup } from 'telegraf'
 import { message } from 'telegraf/filters'
-import { AppOptions, AppContext } from '../interfaces/app.js'
-import { BaseController } from './base.js'
-import { isUserGender, isUserNick, isUserAbout } from '../helpers.js'
-import { USER_GENDERS } from '../constants.js'
+import {
+  AppOptions,
+  Controller,
+  AppContext,
+  AppContextHandler,
+  AppContextExceptionHandler
+} from '../interfaces/app.js'
+import { RedisService } from '../services/redis.js'
+import { PostgresService } from '../services/postgres.js'
+import {
+  getSessionUser,
+  setSessionUser,
+  getSceneSessionRegister,
+  newSceneSessionRegister,
+  isUserGender,
+  isUserNick,
+  isUserAbout,
+  isSceneSessionRegister,
+  markupKeyboardSaveMe,
+  markupInlineKeyboardGender
+} from '../helpers/telegram.js'
+import { USER_GENDERS } from '../constants/user.js'
 import { logger } from '../logger.js'
 
-export class RegisterController extends BaseController {
+export class RegisterController implements Controller {
   scene: Scenes.WizardScene<AppContext>
 
-  constructor(options: AppOptions) {
-    super(options)
+  private redisService = RedisService.instance()
+  private postgresService = PostgresService.instance()
 
+  constructor(private readonly options: AppOptions) {
     this.scene = new Scenes.WizardScene<AppContext>(
       'register-scene',
+      this.enterSceneHandler,
       this.queryNickHandler,
       this.replyNickComposer(),
       this.queryGenderHandler,
@@ -22,14 +42,29 @@ export class RegisterController extends BaseController {
       this.replyAvatarComposer(),
       this.queryAboutHandler,
       this.replyAboutComposer(),
-      this.completeHandler
+      this.leaveSceneHandler
     )
 
     this.scene.use(Scenes.WizardScene.catch(this.exceptionHandler))
   }
 
-  private queryNickHandler = async (ctx: AppContext): Promise<void> => {
-    await ctx.reply('Выбери ник')
+  private enterSceneHandler: AppContextHandler = async (ctx, next) => {
+    newSceneSessionRegister(ctx)
+
+    await ctx.reply(
+      `Ответь на несколько вопросов, чтобы завершить регистрацию`,
+      Markup.removeKeyboard()
+    )
+
+    ctx.wizard.next()
+    if (typeof ctx.wizard.step === 'function') {
+      return ctx.wizard.step(ctx, next)
+    }
+  }
+
+  private queryNickHandler: AppContextHandler = async (ctx) => {
+    await ctx.reply(`Выбери ник`)
+
     ctx.wizard.next()
   }
 
@@ -42,48 +77,41 @@ export class RegisterController extends BaseController {
     return handler
   }
 
-  private replyNickTextHandler = async (
-    ctx: AppContext,
-    next: () => Promise<void>
-  ): Promise<void> => {
+  private replyNickTextHandler: AppContextHandler = async (ctx, next) => {
+    const sceneSessionRegister = getSceneSessionRegister(ctx)
+
     if (ctx.has(message('text'))) {
       const userNick = ctx.message.text.toLowerCase()
 
       if (isUserNick(userNick)) {
-        const check = await this.postgresService.checkUserNick(userNick)
+        const isSuccess = await this.postgresService.checkUserNick(userNick)
 
-        if (check !== undefined) {
-          if (check) {
-            ctx.scene.state.userNick = userNick
+        if (isSuccess) {
+          sceneSessionRegister.nick = userNick
 
-            ctx.wizard.next()
-            if (typeof ctx.wizard.step === 'function') {
-              return ctx.wizard.step(ctx, next)
-            }
-          } else {
-            await ctx.reply('Этот ник уже используется, выбери другой')
+          ctx.wizard.next()
+          if (typeof ctx.wizard.step === 'function') {
+            return ctx.wizard.step(ctx, next)
           }
         } else {
-          await ctx.reply('Ошибка в базе, попробуй еще раз')
+          await ctx.reply(`Этот ник уже используется, выбери другой`)
         }
       } else {
-        await ctx.reply('Неверный ввод, используй латинские буквы и цифры, от 4 до 20 символов')
+        await ctx.reply(
+          `Неверный ввод, используй латинские буквы и цифры, от 4 до 20 символов`
+        )
       }
     }
   }
 
-  private replyNickUnknownHandler = async (ctx: AppContext): Promise<void> => {
-    await ctx.reply('Используй обычное текстовое сообщение!')
+  private replyNickUnknownHandler: AppContextHandler = async (ctx) => {
+    await ctx.reply(`Используй обычное текстовое сообщение!`)
   }
 
-  private queryGenderHandler = async (ctx: AppContext): Promise<void> => {
+  private queryGenderHandler: AppContextHandler = async (ctx) => {
     await ctx.reply(
       'Укажи пол',
-      Markup.inlineKeyboard([
-        Markup.button.callback('Мужской', 'male'),
-        Markup.button.callback('Женский', 'female'),
-        Markup.button.callback('Пара', 'couple'),
-      ])
+      markupInlineKeyboardGender()
     )
     ctx.wizard.next()
   }
@@ -97,14 +125,13 @@ export class RegisterController extends BaseController {
     return handler
   }
 
-  private replyGenderActionHandler = async (
-    ctx: AppContext,
-    next: () => Promise<void>
-  ): Promise<void> => {
+  private replyGenderActionHandler: AppContextHandler = async (ctx, next) => {
+    const sceneSessionRegister = getSceneSessionRegister(ctx)
+
     const userGender = ctx.match.input
 
     if (isUserGender(userGender)) {
-      ctx.scene.state.userGender = userGender
+      sceneSessionRegister.gender = userGender
 
       ctx.wizard.next()
       if (typeof ctx.wizard.step === 'function') {
@@ -115,12 +142,13 @@ export class RegisterController extends BaseController {
     }
   }
 
-  private replyGenderUnknownHandler = async (ctx: AppContext): Promise<void> => {
+  private replyGenderUnknownHandler: AppContextHandler = async (ctx) => {
     await ctx.reply('Используй кнопки в сообщении!')
   }
 
-  private queryAvatarHandler = async (ctx: AppContext): Promise<void> => {
+  private queryAvatarHandler: AppContextHandler = async (ctx) => {
     await ctx.reply('Загрузи аватар')
+
     ctx.wizard.next()
   }
 
@@ -133,26 +161,25 @@ export class RegisterController extends BaseController {
     return handler
   }
 
-  private replyAvatarPhotoHandler = async (
-    ctx: AppContext,
-    next: () => Promise<void>
-  ): Promise<void> => {
+  private replyAvatarPhotoHandler: AppContextHandler = async (ctx, next) => {
+    const sceneSessionRegister = getSceneSessionRegister(ctx)
+
     if (ctx.has(message('photo'))) {
       const photo = ctx.message.photo
 
-      const photoItem = photo.pop()
+      const photoSize = photo.pop()
 
       if (!(
-        photoItem != null &&
-        typeof photoItem === 'object' &&
-        'file_id' in photoItem &&
-        photoItem['file_id'] != null &&
-        typeof photoItem['file_id'] === 'string'
+        photoSize != null &&
+        typeof photoSize === 'object' &&
+        'file_id' in photoSize &&
+        photoSize['file_id'] != null &&
+        typeof photoSize['file_id'] === 'string'
       )) {
-        throw new Error(`response photoItem malformed`)
+        throw new Error(`response photoSize malformed`)
       }
 
-      ctx.scene.state.userAvatar = photoItem['file_id']
+      sceneSessionRegister.avatarTgFileId = photoSize['file_id']
 
       ctx.wizard.next()
       if (typeof ctx.wizard.step === 'function') {
@@ -161,11 +188,11 @@ export class RegisterController extends BaseController {
     }
   }
 
-  private replyAvatarUnknownHandler = async (ctx: AppContext): Promise<void> => {
+  private replyAvatarUnknownHandler: AppContextHandler = async (ctx) => {
     await ctx.reply('Запости картинку!')
   }
 
-  private queryAboutHandler = async (ctx: AppContext): Promise<void> => {
+  private queryAboutHandler: AppContextHandler = async (ctx) => {
     await ctx.reply('Расскажи о себе')
     ctx.wizard.next()
   }
@@ -179,15 +206,14 @@ export class RegisterController extends BaseController {
     return handler
   }
 
-  private replyAboutTextHandler = async (
-    ctx: AppContext,
-    next: () => Promise<void>
-  ): Promise<void> => {
+  private replyAboutTextHandler: AppContextHandler = async (ctx, next) => {
+    const sceneSessionRegister = getSceneSessionRegister(ctx)
+
     if (ctx.has(message('text'))) {
       const userAbout = ctx.message.text
 
       if (isUserAbout(userAbout)) {
-        ctx.scene.state.userAbout = userAbout
+        sceneSessionRegister.about = userAbout
 
         ctx.wizard.next()
         if (typeof ctx.wizard.step === 'function') {
@@ -199,56 +225,48 @@ export class RegisterController extends BaseController {
     }
   }
 
-  private replyAboutUnknownHandler = async (ctx: AppContext): Promise<void> => {
+  private replyAboutUnknownHandler: AppContextHandler = async (ctx) => {
     await ctx.reply('Используй обычное текстовое сообщение!')
   }
 
-  private completeHandler = async (ctx: AppContext): Promise<void> => {
-    const { groupChatId } = this.options
+  private leaveSceneHandler: AppContextHandler = async (ctx) => {
+    const sessionUser = getSessionUser(ctx)
+    const sceneSessionRegister = getSceneSessionRegister(ctx)
 
-    const state = ctx.scene.state
-    const user = ctx.session.user
-
-    if (state === undefined) {
-      throw new Error(`Scene state lost`)
-    }
-
-    if (user === undefined) {
-      throw new Error(`Session user lost`)
-    }
-
-    if (
-      state.userNick == null ||
-      state.userGender == null ||
-      state.userAvatar == null ||
-      state.userAbout == null
-    ) {
-      throw new Error(`Scene data lost`)
-    } else {
+    if (isSceneSessionRegister(sceneSessionRegister)) {
       await this.postgresService.activateUser(
-        user.id,
-        state.userNick,
-        state.userGender,
-        state.userAvatar,
-        state.userAbout
+        sessionUser.id,
+        sceneSessionRegister.nick,
+        sceneSessionRegister.gender,
+        sceneSessionRegister.avatarTgFileId,
+        sceneSessionRegister.about,
+        ctx.from
       )
 
-      await ctx.reply('Регистрация окончена, спасибо!')
+      setSessionUser(ctx, sessionUser)
+
+      await ctx.reply(
+        `Регистрация окончена, спасибо!`,
+        markupKeyboardSaveMe()
+      )
 
       await ctx.scene.leave()
-      await ctx.scene.enter('main-scene')
+    } else {
+      throw new Error(`scene session data lost`)
     }
   }
 
-  private exceptionHandler = async (
-    error: unknown,
-    ctx: AppContext
-  ): Promise<void> => {
+  private exceptionHandler: AppContextExceptionHandler = async (error, ctx) => {
     if (error instanceof Error) {
       logger.error(`RegisterScene error: ${error.message}`)
+      console.error(error.stack)
+      console.dir(ctx)
     }
 
-    await ctx.reply('Произошла ошибка, выход из сцены')
+    await ctx.reply(
+      `Произошла ошибка, выход в главное меню`,
+      markupKeyboardSaveMe()
+    )
 
     await ctx.scene.leave()
   }

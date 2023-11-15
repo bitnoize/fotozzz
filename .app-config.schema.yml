@@ -2,19 +2,27 @@ type: object
 additionalProperties: false
 properties:
   redisUrl:
-    $ref: '#/definitions/RedisUrl'
+    type: string
+    secret: true
   postgresUrl:
-    $ref: '#/definitions/PostgresUrl'
+    type: string
+    secret: true
   botToken:
-    $ref: '#/definitions/BotToken'
+    type: string
+    secret: true
   useProxy:
-    $ref: '#/definitions/UseProxy'
+    type: boolean
   proxyUrl:
-    $ref: '#/definitions/ProxyUrl'
+    type: string
+    secret: true
   groupChatId:
-    $ref: '#/definitions/GroupChatId'
-  groupLink:
-    $ref: '#/definitions/GroupLink'
+    type: number
+  groupUrl:
+    type: string
+  channelChatId:
+    type: number
+  channelUrl:
+    type: string
 required:
   - redisUrl
   - postgresUrl
@@ -22,24 +30,7 @@ required:
   - useProxy
   - proxyUrl
   - groupChatId
-  - groupLink
-definitions:
-  RedisUrl:
-    type: string
-    secret: true
-  PostgresUrl:
-    type: string
-    secret: true
-  BotToken:
-    type: string
-    secret: true
-  UseProxy:
-    type: boolean
-  ProxyUrl:
-    type: string
-    secret: true
-  GroupChatId:
-    type: number
-  GroupLink:
-    type: string
+  - groupUrl
+  - channelChatId
+  - channelUrl
 

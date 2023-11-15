@@ -46,6 +46,7 @@
     "rollup": "^3.26.3",
     "terser": "^5.19.2",
     "tslib": "^2.6.0",
+    "typegram": "^5.2.0",
     "typescript": "^5.0.4"
   },
   "imports": {

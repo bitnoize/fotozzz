@@ -7,7 +7,9 @@ export interface Config {
   useProxy: boolean
   proxyUrl: string
   groupChatId: number
-  groupLink: string
+  groupUrl: string
+  channelChatId: number
+  channelUrl: string
 }
 
 declare module '@app-config/main' {
