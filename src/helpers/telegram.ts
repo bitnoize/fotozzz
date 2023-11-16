@@ -98,6 +98,13 @@ export const isSceneSessionRegister = (
 // Keyboards
 //
 
+export const markupKeyboardProfile = () => {
+  return Markup.keyboard([
+    Markup.button.text(`Показать профиль`),
+    Markup.button.text(`В главное меню`),
+  ]).resize()
+}
+
 export const markupKeyboardSaveMe = () => {
   return Markup.keyboard([
     Markup.button.text(`Окей, давай дальше`)
@@ -112,3 +119,14 @@ export const markupInlineKeyboardGender = () => {
   ])
 }
 
+export const markupKeyboardCheckGroup = () => {
+  return Markup.keyboard([
+    Markup.button.text('Я уже подписан на группу')
+  ]).resize()
+}
+
+export const markupKeyboardCheckChannel = () => {
+  return Markup.keyboard([
+    Markup.button.text('Я уже подписан на канал')
+  ]).resize()
+}

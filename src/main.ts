@@ -40,8 +40,10 @@ export const bootstrap = async (): Promise<void> => {
   await app.start()
 }
 
-bootstrap().catch((error) => {
-  console.error(error.stack)
+bootstrap().catch((error: unknown) => {
+  if (error instanceof Error) {
+    console.error(error.stack)
+  }
 
   process.exit(1)
 })

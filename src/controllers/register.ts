@@ -252,7 +252,7 @@ export class RegisterController implements Controller {
 
       await ctx.scene.leave()
     } else {
-      throw new Error(`scene session data lost`)
+      throw new Error(`scene session register data lost`)
     }
   }
 

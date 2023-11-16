@@ -7,16 +7,18 @@ import {
   Controller,
   AppContext,
   AppSession,
-  AppContextHandler
+  AppContextHandler,
+  CheckSessionUserHandler
 } from './interfaces/app.js'
 import { RedisService } from './services/redis.js'
 import { PostgresService } from './services/postgres.js'
 import { RegisterController } from './controllers/register.js'
+import { ProfileController } from './controllers/profile.js'
 import {
-  getFrom,
-  getChat,
   getSessionUser,
-  setSessionUser
+  setSessionUser,
+  markupKeyboardCheckGroup,
+  markupKeyboardCheckChannel
 } from './helpers/telegram.js'
 import { logger } from './logger.js'
 
@@ -56,6 +58,7 @@ export class App {
     const controllers: Array<Controller> = []
 
     controllers.push(new RegisterController(this.options))
+    controllers.push(new ProfileController(this.options))
 
     const stage = new Scenes.Stage<AppContext>(
       controllers.map((controller) => controller.scene)
@@ -67,7 +70,7 @@ export class App {
     this.bot.use(this.membershipHandler)
 
     this.bot.command('start', this.startCommandHandler)
-    //this.bot.command('profile', this.profileCommandHandler)
+    this.bot.command('profile', this.profileCommandHandler)
     //this.bot.command('photo', this.photoCommandHandler)
     //this.bot.command('search', this.searchCommandHandler)
 
@@ -81,8 +84,14 @@ export class App {
     )
 
     this.bot.on('chat_join_request', this.chatJoinRequestHandler)
-    this.bot.on('new_chat_member', this.newChatMemberHandler)
-    this.bot.on('left_chat_member', this.leftChatMemberHandler)
+
+    this.bot.on(
+      [
+        'new_chat_member',
+        'left_chat_member'
+      ],
+      this.changeChatMemberHandler
+    )
 
     this.bot.use(this.unknownHandler)
     this.bot.catch(this.exceptionHandler)
@@ -98,88 +107,87 @@ export class App {
   }
 
   private authorizeHandler: AppContextHandler = async (ctx, next) => {
-    const { 'id': fromId, 'is_bot': fromIsBot } = getFrom(ctx)
+    if (ctx.from !== undefined) {
+      const { 'id': fromId, 'is_bot': fromIsBot } = ctx.from
 
-    if (!fromIsBot) {
-      const sessionUser = await this.postgresService.authorizeUser(
-        fromId,
-        ctx.from
-      )
+      if (!fromIsBot) {
+        const sessionUser = await this.postgresService.authorizeUser(
+          fromId,
+          ctx.from
+        )
 
-      if (sessionUser.status !== 'banned') {
-        setSessionUser(ctx, sessionUser)
+        if (sessionUser.status !== 'banned') {
+          setSessionUser(ctx, sessionUser)
 
-        await next()
+          await next()
+        } else {
+          logger.info(`Bot authorize: ignore banned user ${sessionUser.id}`)
+        }
       } else {
-        logger.info(`Ignore banned user ${sessionUser.id}`)
+        logger.info(`Bot authorize: ignore bot ${fromId}`)
       }
     } else {
-      logger.info(`Ignore bot`)
-      console.dir(ctx.message)
+      logger.info(`Bot authorize: skip undefined from`)
+      console.dir(ctx)
     }
   }
 
   private membershipHandler: AppContextHandler = async (ctx, next) => {
     const { groupChatId, channelChatId } = this.options
 
-    const { 'type': chatType } = getChat(ctx)
     const sessionUser = getSessionUser(ctx)
 
-    if (chatType === 'private') {
-      console.log(`API getChatMember DO!`)
+    if (ctx.chat !== undefined) {
+      const { 'type': chatType } = ctx.chat
 
-      const groupMember = await ctx.telegram.getChatMember(
-        groupChatId,
-        sessionUser.tgId
-      )
+      if (chatType === 'private') {
+        const allowStatuses = [
+          'creator',
+          'administrator',
+          'member'
+        ]
 
-      if (groupMember.status === 'member') {
-        sessionUser.isGroupMember = true
+        const groupMember = await ctx.telegram.getChatMember(
+          groupChatId,
+          sessionUser.tgId
+        )
+
+        if (allowStatuses.includes(groupMember.status)) {
+          sessionUser.isGroupMember = true
+          logger.info(`Bot membership: success for group`)
+        }
+
+        const channelMember = await ctx.telegram.getChatMember(
+          channelChatId,
+          sessionUser.tgId
+        )
+
+        if (allowStatuses.includes(channelMember.status)) {
+          sessionUser.isChannelMember = true
+          logger.info(`Bot membership: success for channel`)
+        }
+
+        await next()
+      } else {
+        logger.info(`Bot membership: skip not private chat`)
+        await next()
       }
-
-      const channelMember = await ctx.telegram.getChatMember(
-        channelChatId,
-        sessionUser.tgId
-      )
-
-      if (channelMember.status === 'member') {
-        sessionUser.isChannelMember = true
-      }
-
-      await next()
     } else {
-      console.log(`API getChatMember SKIP!`)
+      logger.info(`Bot membership: skip undefined chat`)
       await next()
     }
   }
 
   private startCommandHandler: AppContextHandler = async (ctx) => {
-    const { groupUrl, channelUrl } = this.options
+    await this.checkSessionUser(ctx, async (sessionUser) => {
+      await ctx.reply(`Бот приветствует тебя, ${sessionUser.nick}!`)
+    })
+  }
 
-    const sessionUser = getSessionUser(ctx)
-    console.dir(sessionUser)
-
-    if (sessionUser.status === 'register') {
-      await ctx.scene.enter('register-scene')
-    } else {
-      if (!sessionUser.isGroupMember) {
-        await ctx.reply(
-          `Ты еще не подписан на группу! ${groupUrl}`,
-          Markup.keyboard([
-            Markup.button.text('Я уже подписан на группу')
-          ]).resize()
-        )
-      } else if (!sessionUser.isChannelMember) {
-        await ctx.reply(
-          `Ты еще не подписан на канал! ${channelUrl}`,
-          Markup.keyboard([
-            Markup.button.text('Я уже подписан на канал')
-          ]).resize()
-        )
-      } else {
-        await ctx.reply(`Бот приветствует тебя, ${sessionUser.nick}!`)
-      }
-    }
+  private profileCommandHandler: AppContextHandler = async (ctx) => {
+    await this.checkSessionUser(ctx, async (sessionUser) => {
+      await ctx.scene.enter('profile-scene')
+    })
   }
 
   private chatJoinRequestHandler: AppContextHandler = async (ctx) => {
@@ -192,6 +200,7 @@ export class App {
 
     if (ctx.chatJoinRequest !== undefined) {
       const { 'id': chatId } =  ctx.chatJoinRequest.chat
+      const { 'id': fromId } =  ctx.chatJoinRequest.from
 
       if (chatId === groupChatId || chatId === channelChatId) {
         const isSuccess = await ctx.telegram.approveChatJoinRequest(
@@ -199,40 +208,62 @@ export class App {
           sessionUser.tgId
         )
 
-        if (isSuccess) {
-          //await ctx.reply(`Запрос на членство подтвержден`)
-        } else {
-          //await ctx.reply(`Запрос на членство отклонен`)
+        if (!isSuccess) {
+          logger.warn(`Bot declined approveChatJoinRequest`)
+          console.dir(ctx.chatJoinRequest)
         }
       } else {
-        logger.warning(`Ignore chatJoinRequest`)
-        console.dir(ctx.message)
+        logger.info(`Bot ignore chatJoinRequest unknown group`)
+        console.dir(ctx.chatJoinRequest)
+      }
+    } else {
+      logger.info(`Bot ignore chatJoinRequest undefined`)
+      console.dir(ctx.chatJoinRequest)
+    }
+  }
+
+  private checkSessionUser = async (
+    ctx: AppContext,
+    handler: CheckSessionUserHandler
+  ): Promise<void> => {
+    const { groupUrl, channelUrl } = this.options
+
+    const sessionUser = getSessionUser(ctx)
+
+    if (sessionUser.status === 'register') {
+      await ctx.scene.enter('register-scene')
+    } else {
+      if (!sessionUser.isGroupMember) {
+        await ctx.reply(
+          `Ты еще не подписан на группу: ${groupUrl}`,
+          markupKeyboardCheckGroup()
+        )
+      } else if (!sessionUser.isChannelMember) {
+        await ctx.reply(
+          `Ты еще не подписан на канал: ${channelUrl}`,
+          markupKeyboardCheckChannel()
+        )
+      } else {
+        await handler(sessionUser)
       }
     }
   }
 
-  private prepareCheck = async (ctx: AppContext): Promise<boolean> => {
-    return true
-  }
-
-  private newChatMemberHandler: AppContextHandler = async (ctx) => {
-    logger.error(`Bot new chat member`)
-    console.dir(ctx.message)
-  }
-
-  private leftChatMemberHandler: AppContextHandler = async (ctx) => {
-    logger.info(`Bot left chat member`)
+  private changeChatMemberHandler: AppContextHandler = async (ctx) => {
+    logger.info(`Bot changeChatMemberHandler`)
     console.dir(ctx.message)
   }
 
   private unknownHandler: AppContextHandler = async (ctx) => {
-    const { 'type': chatType } = getChat(ctx)
+    if (ctx.chat !== undefined) {
+      const { 'type': chatType } = ctx.chat
 
-    if (chatType === 'private') {
-      await ctx.reply('Неизвестная команда')
+      if (chatType === 'private') {
+        await ctx.reply('Неизвестная команда')
+      }
     }
 
-    logger.info(`Bot unknown command`)
+    logger.info(`Bot unknown message`)
     console.dir(ctx.message)
   }
 

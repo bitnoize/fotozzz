@@ -40,3 +40,5 @@ export type AppContextExceptionHandler = (
   error: unknown,
   ctx: AppContext,
 ) => Promise<unknown | void>
+
+export type CheckSessionUserHandler = (sessionUser: SessionUser) => Promise<void>

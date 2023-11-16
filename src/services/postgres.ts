@@ -115,7 +115,9 @@ export class PostgresService {
       await client.query('COMMIT')
 
       return sessionUser
-    } catch (error) {
+    } catch (error: unknown) {
+      await client.query('ROLLBACK')
+
       throw error
     } finally {
       client.release()
@@ -235,6 +237,36 @@ export class PostgresService {
 
       return sessionUser
     } catch (error) {
+      await client.query('ROLLBACK')
+
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  async getUser(id: number): Promise<User> {
+    const client = await this.pool.connect()
+
+    try {
+      const resultSelect = await client.query(
+        this.getUserSelectSql,
+        [id]
+      )
+
+      if (resultSelect.rowCount === 0) {
+        throw new Error(`no user row selected`)
+      }
+
+      const rowSelect = resultSelect.rows.shift()
+      if (!isRowUser(rowSelect)) {
+        throw new Error(`selected row validation failed`)
+      }
+
+      const user = buildUser(rowSelect)
+
+      return user
+    } catch (error) {
       throw error
     } finally {
       client.release()
@@ -312,6 +344,5 @@ SELECT
   register_time, last_activity_time
 FROM users
 WHERE id = $1
-FOR SHARE
 `
 }
