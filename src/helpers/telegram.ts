@@ -53,6 +53,20 @@ export const newSceneSessionRegister = (ctx: AppContext) => {
 }
 
 //
+// Helpers
+//
+
+export const getEmojiGender = (gender: UserGender): string => {
+  const genderEmojis: { [key: string ]: string } = {
+    'male': '\u{1F57A}',
+    'female': '\u{1F483}',
+    'couple': '\u{1F46B}'
+  }
+
+  return genderEmojis[gender] ?? '\u{1F601}'
+}
+
+//
 // Type Guards
 //
 
@@ -98,19 +112,6 @@ export const isSceneSessionRegister = (
 // Keyboards
 //
 
-export const markupKeyboardProfile = () => {
-  return Markup.keyboard([
-    Markup.button.text(`Показать профиль`),
-    Markup.button.text(`В главное меню`),
-  ]).resize()
-}
-
-export const markupKeyboardSaveMe = () => {
-  return Markup.keyboard([
-    Markup.button.text(`Окей, давай дальше`)
-  ]).resize()
-}
-
 export const markupInlineKeyboardGender = () => {
   return Markup.inlineKeyboard([
     Markup.button.callback(`Мужской`, 'male'),
@@ -119,14 +120,23 @@ export const markupInlineKeyboardGender = () => {
   ])
 }
 
+export const markupInlineKeyboardProfile = () => {
+  return Markup.inlineKeyboard([
+    Markup.button.callback('Редактировать аватар', 'edit-avatar'),
+    Markup.button.callback('Редактировать о себе', 'edit-about'),
+    Markup.button.callback('Вернуться в меню', 'return-menu'),
+  ])
+}
+
 export const markupKeyboardCheckGroup = () => {
-  return Markup.keyboard([
-    Markup.button.text('Я уже подписан на группу')
-  ]).resize()
+  return Markup.inlineKeyboard([
+    Markup.button.callback('Я уже подписан на группу', 'group-check'),
+  ])
 }
 
 export const markupKeyboardCheckChannel = () => {
-  return Markup.keyboard([
-    Markup.button.text('Я уже подписан на канал')
-  ]).resize()
+  return Markup.inlineKeyboard([
+    Markup.button.callback('Я уже подписан на канал', 'channel-check'),
+  ])
 }
+

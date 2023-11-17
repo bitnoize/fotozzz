@@ -11,8 +11,8 @@ import { RedisService } from '../services/redis.js'
 import { PostgresService } from '../services/postgres.js'
 import {
   getSessionUser,
-  markupKeyboardSaveMe,
-  markupKeyboardProfile
+  getEmojiGender,
+  markupInlineKeyboardPhoto
 } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
 
@@ -23,29 +23,24 @@ export class PhotoController implements Controller {
   private postgresService = PostgresService.instance()
 
   constructor(private readonly options: AppOptions) {
-    this.scene = new Scenes.BaseScene<AppContext>('profile-scene')
+    this.scene = new Scenes.BaseScene<AppContext>('photo-scene')
 
     this.scene.enter(this.enterSceneHandler)
     this.scene.leave(this.leaveSceneHandler)
 
-    this.scene.hears('В главное меню', this.backMenuHandler)
+    this.scene.action('next-photo', this.nextPhotoHandler)
 
     this.scene.use(this.unknownHandler)
     this.scene.use(Scenes.BaseScene.catch(this.exceptionHandler))
   }
 
   private enterSceneHandler = async (ctx: AppContext): Promise<void> => {
-    const { groupChatId } = this.options
-
-    await ctx.reply(
-      `Тут ты можешь просмотреть свой профиль`,
-    )
+    const sessionUser = getSessionUser(ctx)
   }
 
   private leaveSceneHandler = async (ctx: AppContext): Promise<void> => {
     await ctx.reply(
-      `Выход в главное меню`,
-      markupKeyboardSaveMe()
+      `Ты в главном меню`
     )
   }
 
@@ -55,8 +50,7 @@ export class PhotoController implements Controller {
 
   private unknownHandler = async (ctx: AppContext): Promise<void> => {
     await ctx.reply(
-      `Неизвестная команда, попробуй еще раз`,
-      markupKeyboardProfile()
+      `Неизвестная команда, испольуй кнопки в сообщении`
     )
   }
 
@@ -69,7 +63,6 @@ export class PhotoController implements Controller {
 
     await ctx.reply(
       `Произошла ошибка, выход в главное меню`,
-      markupKeyboardSaveMe()
     )
 
     await ctx.scene.leave()

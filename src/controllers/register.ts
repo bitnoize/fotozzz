@@ -18,7 +18,6 @@ import {
   isUserNick,
   isUserAbout,
   isSceneSessionRegister,
-  markupKeyboardSaveMe,
   markupInlineKeyboardGender
 } from '../helpers/telegram.js'
 import { USER_GENDERS } from '../constants/user.js'
@@ -247,7 +246,6 @@ export class RegisterController implements Controller {
 
       await ctx.reply(
         `Регистрация окончена, спасибо!`,
-        markupKeyboardSaveMe()
       )
 
       await ctx.scene.leave()
@@ -264,8 +262,7 @@ export class RegisterController implements Controller {
     }
 
     await ctx.reply(
-      `Произошла ошибка, выход в главное меню`,
-      markupKeyboardSaveMe()
+      `Произошла ошибка, выход в главное меню`
     )
 
     await ctx.scene.leave()

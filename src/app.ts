@@ -14,9 +14,12 @@ import { RedisService } from './services/redis.js'
 import { PostgresService } from './services/postgres.js'
 import { RegisterController } from './controllers/register.js'
 import { ProfileController } from './controllers/profile.js'
+//import { PhotoController } from './controllers/photo.js'
+//import { SearchController } from './controllers/photo.js'
 import {
   getSessionUser,
   setSessionUser,
+  getEmojiGender,
   markupKeyboardCheckGroup,
   markupKeyboardCheckChannel
 } from './helpers/telegram.js'
@@ -59,6 +62,8 @@ export class App {
 
     controllers.push(new RegisterController(this.options))
     controllers.push(new ProfileController(this.options))
+    //controllers.push(new PhotoController(this.options))
+    //controllers.push(new SearchController(this.options))
 
     const stage = new Scenes.Stage<AppContext>(
       controllers.map((controller) => controller.scene)
@@ -141,7 +146,7 @@ export class App {
       const { 'type': chatType } = ctx.chat
 
       if (chatType === 'private') {
-        const allowStatuses = [
+        const allowedStatuses = [
           'creator',
           'administrator',
           'member'
@@ -152,7 +157,7 @@ export class App {
           sessionUser.tgId
         )
 
-        if (allowStatuses.includes(groupMember.status)) {
+        if (allowedStatuses.includes(groupMember.status)) {
           sessionUser.isGroupMember = true
           logger.info(`Bot membership: success for group`)
         }
@@ -162,7 +167,7 @@ export class App {
           sessionUser.tgId
         )
 
-        if (allowStatuses.includes(channelMember.status)) {
+        if (allowedStatuses.includes(channelMember.status)) {
           sessionUser.isChannelMember = true
           logger.info(`Bot membership: success for channel`)
         }
@@ -180,11 +185,22 @@ export class App {
 
   private startCommandHandler: AppContextHandler = async (ctx) => {
     await this.checkSessionUser(ctx, async (sessionUser) => {
-      await ctx.reply(`Бот приветствует тебя, ${sessionUser.nick}!`)
+      const emojiGender = getEmojiGender(sessionUser.gender)
+      await ctx.replyWithMarkdownV2(
+        `Бот приветствует тебя, ${emojiGender} *${sessionUser.nick}*!\n` +
+        `... Описание сервиса ...\n` +
+        `Ты можешь загрузить до 3 фото в течении 24 часов`
+      )
     })
   }
 
   private profileCommandHandler: AppContextHandler = async (ctx) => {
+    await this.checkSessionUser(ctx, async (sessionUser) => {
+      await ctx.scene.enter('profile-scene')
+    })
+  }
+
+  private photoCommandHandler: AppContextHandler = async (ctx) => {
     await this.checkSessionUser(ctx, async (sessionUser) => {
       await ctx.scene.enter('profile-scene')
     })
@@ -196,7 +212,7 @@ export class App {
     const sessionUser = getSessionUser(ctx)
 
     console.log(`chatJoinRequestHandler`)
-    console.dir(ctx.chatJoinRequest)
+    //console.dir(ctx.chatJoinRequest)
 
     if (ctx.chatJoinRequest !== undefined) {
       const { 'id': chatId } =  ctx.chatJoinRequest.chat
@@ -234,13 +250,13 @@ export class App {
       await ctx.scene.enter('register-scene')
     } else {
       if (!sessionUser.isGroupMember) {
-        await ctx.reply(
-          `Ты еще не подписан на группу: ${groupUrl}`,
+        await ctx.replyWithMarkdownV2(
+          `Ты еще не подписан на [группу](${groupUrl})`,
           markupKeyboardCheckGroup()
         )
       } else if (!sessionUser.isChannelMember) {
-        await ctx.reply(
-          `Ты еще не подписан на канал: ${channelUrl}`,
+        await ctx.replyWithMarkdownV2(
+          `Ты еще не подписан на [канал](${channelUrl})`,
           markupKeyboardCheckChannel()
         )
       } else {
@@ -259,7 +275,7 @@ export class App {
       const { 'type': chatType } = ctx.chat
 
       if (chatType === 'private') {
-        await ctx.reply('Неизвестная команда')
+        await ctx.replyWithMarkdownV2(`Неизвестная команда`)
       }
     }
 

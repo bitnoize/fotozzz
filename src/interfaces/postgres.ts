@@ -9,6 +9,10 @@ export interface RowId {
   id: number
 }
 
+export interface RowCount {
+  count: number
+}
+
 export interface RowSessionUser {
   id: number
   tg_id: number

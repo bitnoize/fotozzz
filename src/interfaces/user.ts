@@ -4,22 +4,9 @@ export type UserGender = (typeof USER_GENDERS)[number]
 export type UserStatus = (typeof USER_STATUSES)[number]
 export type UserRole = (typeof USER_ROLES)[number]
 
-export interface User {
-  id: number
-  tgId: number
-  nick: string | null
-  gender: UserGender | null
-  status: UserStatus
-  role: UserRole
-  avatarTgFileId: string | null
-  about: string | null
-  registerTime: Date
-  lastActivityTime: Date
-}
-
 export interface SessionUser {
   id: number
-  tgId: number
+  tgId: string
   nick: string | null
   gender: UserGender | null
   status: UserStatus
@@ -28,6 +15,21 @@ export interface SessionUser {
   lastActivityTime: Date
   isGroupMember: boolean
   isChannelMember: boolean
+}
+
+export interface User {
+  id: number
+  tgId: string
+  nick: string | null
+  gender: UserGender | null
+  status: UserStatus
+  role: UserRole
+  avatarTgFileId: string | null
+  about: string | null
+  registerTime: Date
+  lastActivityTime: Date
+  countPhotos: number
+  countComments: number
 }
 
 export interface Register {

@@ -11,11 +11,11 @@ import { RedisService } from '../services/redis.js'
 import { PostgresService } from '../services/postgres.js'
 import {
   getSessionUser,
+  getEmojiGender,
   isUserGender,
   isUserNick,
   isUserAbout,
-  markupKeyboardProfile,
-  markupKeyboardSaveMe
+  markupInlineKeyboardProfile
 } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
 
@@ -29,49 +29,65 @@ export class ProfileController implements Controller {
     this.scene = new Scenes.BaseScene<AppContext>('profile-scene')
 
     this.scene.enter(this.enterSceneHandler)
+    this.scene.leave(this.leaveSceneHandler)
 
-    this.scene.hears('Показать профиль', this.showProfileHandler)
-    this.scene.hears('В главное меню', this.leaveSceneHandler)
+    this.scene.action('edit-avatar', this.editAvatarHandler)
+    this.scene.action('edit-about', this.editAboutHandler)
+    this.scene.action('return-menu', this.returnMenuHandler)
 
     this.scene.use(this.unknownHandler)
     this.scene.use(Scenes.BaseScene.catch(this.exceptionHandler))
   }
 
   private enterSceneHandler = async (ctx: AppContext): Promise<void> => {
-    const { groupChatId } = this.options
-
-    await ctx.reply(
-      `Тут ты можешь просмотреть свой профиль`,
-      markupKeyboardProfile()
-    )
-  }
-
-  private leaveSceneHandler = async (ctx: AppContext): Promise<void> => {
-    await ctx.reply(
-      `Выход в главное меню`,
-      markupKeyboardSaveMe()
-    )
-
-    await ctx.scene.leave()
-  }
-
-  private showProfileHandler: AppContextHandler = async (ctx) => {
     const sessionUser = getSessionUser(ctx)
 
     const user = await this.postgresService.getUser(sessionUser.id)
 
-    await ctx.reply(`
-Ник: ${user.nick}
-Пол: ${user.gender}
-О себе: ${user.about}`,
-      markupKeyboardProfile()
+    const emojiGender = getEmojiGender(user.gender)
+    const extra = markupInlineKeyboardProfile()
+
+    extra.caption =
+      `${emojiGender} ${user.nick}\n` +
+      `О себе: ${user.about}`
+
+    if (user.avatarTgFileId === undefined) {
+      throw new Error(`user ${user.id} avatarTgFileId undefined`)
+    } else {
+      await ctx.sendPhoto(user.avatarTgFileId, extra)
+    }
+  }
+
+  private leaveSceneHandler = async (ctx: AppContext): Promise<void> => {
+    await ctx.reply(
+      `Ты в главном меню`,
+      Markup.removeKeyboard()
     )
+  }
+
+  private editAvatarHandler = async (ctx: AppContext): Promise<void> => {
+    await ctx.deleteMessage()
+
+    await ctx.scene.leave()
+    await ctx.scene.enter('profile-avatar')
+  }
+
+  private editAboutHandler = async (ctx: AppContext): Promise<void> => {
+    await ctx.deleteMessage()
+
+    await ctx.scene.leave()
+    await ctx.scene.enter('profile-about')
+  }
+
+  private returnMenuHandler = async (ctx: AppContext): Promise<void> => {
+    await ctx.deleteMessage()
+
+    await ctx.scene.leave()
   }
 
   private unknownHandler = async (ctx: AppContext): Promise<void> => {
     await ctx.reply(
-      `Неизвестная команда, попробуй еще раз`,
-      markupKeyboardProfile()
+      `Неизвестная команда, испольуй кнопки в сообщении`
     )
   }
 
@@ -83,10 +99,19 @@ export class ProfileController implements Controller {
     }
 
     await ctx.reply(
-      `Произошла ошибка, выход в главное меню`,
-      markupKeyboardSaveMe()
+      `Произошла ошибка, выход в главное меню`
     )
 
     await ctx.scene.leave()
   }
 }
+
+
+/*
+
+    this.scene.hears('Показать профиль', this.showProfileHandler)
+    this.scene.hears('В главное меню', this.leaveSceneHandler)
+
+
+
+*/

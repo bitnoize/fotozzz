@@ -1,5 +1,6 @@
 import {
   RowId,
+  RowCount,
   RowSessionUser,
   RowUser,
   RowPhoto
@@ -20,6 +21,17 @@ export const isRowId = (
     'id' in rowId &&
     (typeof rowId['id'] === 'number' ||
       typeof rowId['id'] === 'string')
+  )
+}
+
+export const isRowCount = (
+  rowCount: unknown
+): rowCount is RowCount => {
+  return (
+    rowCount != null &&
+    typeof rowCount === 'object' &&
+    'count' in rowCount &&
+    typeof rowCount['count'] === 'number'
   )
 }
 
@@ -88,6 +100,16 @@ export const isRowUser = (
   )
 }
 
+export const isRowsPhotos = (
+  rowsPhotos: unknown
+): rowsPhotos is RowPhoto[] => {
+  return (
+    rowsPhotos != null &&
+    Array.isArray(rowsPhotos) &&
+    rowsPhotos.some((rowPhoto) => isRowPhoto(rowPhoto))
+  )
+}
+
 export const isRowPhoto = (
   rowPhoto: unknown
 ): rowPhoto is RowPhoto => {
@@ -133,7 +155,11 @@ export const buildSessionUser = (rowSessionUser: RowSessionUser): SessionUser =>
   return sessionUser
 }
 
-export const buildUser = (rowUser: RowUser): User => {
+export const buildUser = (
+  rowUser: RowUser,
+  countPhotos: number,
+  countComments: number
+): User => {
   const user: User = {
     id: rowUser['id'],
     tgId: rowUser['tg_id'],
@@ -144,7 +170,9 @@ export const buildUser = (rowUser: RowUser): User => {
     avatarTgFileId: rowUser['avatar_tg_file_id'],
     about: rowUser['about'],
     registerTime: rowUser['register_time'],
-    lastActivityTime: rowUser['last_activity_time']
+    lastActivityTime: rowUser['last_activity_time'],
+    countPhotos,
+    countComments
   }
 
   return user
@@ -162,4 +190,8 @@ export const buildPhoto = (rowPhoto: RowPhoto): Photo => {
   }
 
   return photo
+}
+
+export const buildPhotos = (rowsPhotos: RowPhoto[]): Photo[] => {
+  return rowsPhotos.map((rowPhoto) => buildPhoto(rowPhoto))
 }
