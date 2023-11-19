@@ -1,17 +1,27 @@
 import pg from 'pg'
 import { PostgresServiceOptions } from '../interfaces/postgres.js'
 import { SessionUser, User, UserGender } from '../interfaces/user.js'
+import { Topic } from '../interfaces/topic.js'
+import { Photo } from '../interfaces/photo.js'
+import { Rate } from '../interfaces/rate.js'
+import { Comment } from '../interfaces/comment.js'
 import {
   isRowId,
   isRowCount,
   isRowSessionUser,
   isRowUser,
+  isRowTopic,
+  isRowsTopics,
   isRowPhoto,
   isRowsPhotos,
+  isRowComment,
+  isRowsComments,
   buildSessionUser,
   buildUser,
   buildPhoto,
-  buildPhotos
+  buildPhotos,
+  buildComment,
+  buildComments
 } from '../helpers/postgres.js'
 import { logger } from '../logger.js'
 
@@ -57,52 +67,53 @@ export class PostgresService {
 
       let sessionUser: SessionUser
 
-      const resultSelectExists = await client.query(
-        this.authorizeUserSelectExistsSql,
+      const resultSelectUserExists = await client.query(
+        this.selectSessionUserByTgIdForShareSql,
         [tgId]
       )
 
-      if (resultSelectExists.rowCount === 0) {
-        const resultInsert = await client.query(
-          this.authorizeUserInsertSql,
+      if (resultSelectUserExists.rowCount === 0) {
+        const resultInsertUser = await client.query(
+          this.insertUserSql,
           [tgId, 'register', 'user']
         )
 
-        const rowInsert = resultInsert.rows.shift()
-        if (!isRowId(rowInsert)) {
-          throw new Error(`inserted row validation failed`)
+        const rowInsertUser = resultInsertUser.rows.shift()
+        if (!isRowId(rowInsertUser)) {
+          throw new Error(`insert user malformed result`)
         }
 
-        const resultSelectInserted = await client.query(
-          this.authorizeUserSelectInsertedSql,
-          [rowInsert['id']]
+        const resultSelectUser = await client.query(
+          this.selectSessionUserByIdForShareSql,
+          [rowInsertUser['id']]
         )
 
-        const rowSelectInserted = resultSelectInserted.rows.shift()
-        if (!isRowSessionUser(rowSelectInserted)) {
-          throw new Error(`selected row validation failed`)
+        const rowSelectUser = resultSelectUser.rows.shift()
+        if (!isRowSessionUser(rowSelectUser)) {
+          throw new Error(`select user malformed result`)
         }
 
         await client.query(
-          this.commonUserLogInsertSql,
+          this.insertUserLogSql,
           [
-            rowSelectInserted['id'],
-            rowSelectInserted['id'],
+            rowSelectUser['id'],
+            rowSelectUser['id'],
             'user_register',
-            rowSelectInserted['status'],
-            rowSelectInserted['role'],
+            rowSelectUser['status'],
+            rowSelectUser['role'],
             { from }
           ]
         )
 
-        sessionUser = buildSessionUser(rowSelectInserted)
+        sessionUser = buildSessionUser(rowSelectUser)
       } else {
-        const rowSelectExists = resultSelectExists.rows.shift()
-        if (!isRowSessionUser(rowSelectExists)) {
-          throw new Error(`selected row validation failed`)
+        const rowSelectUserExists =
+          resultSelectUserExists.rows.shift()
+        if (!isRowSessionUser(rowSelectUserExists)) {
+          throw new Error(`selected user malformed result`)
         }
 
-        sessionUser = buildSessionUser(rowSelectExists)
+        sessionUser = buildSessionUser(rowSelectUserExists)
       }
 
       await client.query('COMMIT')
@@ -121,12 +132,12 @@ export class PostgresService {
     const client = await this.pool.connect()
 
     try {
-      const resultSelect = await client.query(
-        this.checkUserNickSelectSql,
+      const resultSelectUserNick = await client.query(
+        this.selectUserByNickSql,
         [nick]
       )
 
-      return resultSelect.rowCount === 0 ? true : false
+      return resultSelectUserNick.rowCount === 0 ? true : false
     } catch (error) {
       throw error
     } finally {
@@ -147,72 +158,73 @@ export class PostgresService {
     try {
       await client.query('BEGIN')
 
-      const resultSelectLock = await client.query(
-        this.activateUserSelectLockSql,
+      const resultSelectUserExists = await client.query(
+        this.selectSessionUserByIdForUpdateSql,
         [id]
       )
 
-      if (resultSelectLock.rowCount === 0) {
-        throw new Error(`expected user ${id} not exists`)
+      if (resultSelectUserExists.rowCount === 0) {
+        throw new Error(`expected user does not exists`)
       }
 
-      const rowSelectLock = resultSelectLock.rows.shift()
-      if (!isRowSessionUser(rowSelectLock)) {
-        throw new Error(`select row validation failed`)
+      const rowSelectUserExists = resultSelectUserExists.rows.shift()
+      if (!isRowSessionUser(rowSelectUserExists)) {
+        throw new Error(`select user malformed result`)
       }
 
-      if (rowSelectLock['status'] !== 'register') {
-        throw new Error(`only register users can be activated`)
+      if (rowSelectUserExists['status'] !== 'register') {
+        throw new Error(`only register user can be activated`)
       }
 
-      const resultSelectNick = await client.query(
-        this.activateUserSelectNickSql,
+      const resultSelectUserNick = await client.query(
+        this.selectUserByNickSql,
         [nick]
       )
 
-      if (resultSelectNick.rowCount !== 0) {
-        throw new Error(`register nick allready exists`)
+      if (resultSelectUserNick.rowCount !== 0) {
+        throw new Error(`user nick allready used`)
       }
 
-      const resultUpdate = await client.query(
-        this.activateUserUpdateSql,
+      const resultUpdateUser = await client.query(
+        this.updateUserActivateSql,
         [
           nick,
           gender,
+          'active',
           avatarTgFileId,
           about,
-          rowSelectLock['id']
+          rowSelectUserExists['id']
         ]
       )
 
-      const rowUpdate = resultUpdate.rows.shift()
-      if (!isRowId(rowUpdate)) {
-        throw new Error(`updated row validation failed`)
+      const rowUpdateUser = resultUpdateUser.rows.shift()
+      if (!isRowId(rowUpdateUser)) {
+        throw new Error(`update user malformed result`)
       }
 
       const resultSelectUpdated = await client.query(
-        this.activateUserSelectUpdatedSql,
-        [rowUpdate['id']]
+        this.selectSessionUserByIdForShareSql,
+        [rowUpdateUser['id']]
       )
 
-      const rowSelectUpdated = resultSelectUpdated.rows.shift()
-      if (!isRowSessionUser(rowSelectUpdated)) {
-        throw new Error(`selected row validation failed`)
+      const rowSelectUser = resultSelectUpdated.rows.shift()
+      if (!isRowSessionUser(rowSelectUser)) {
+        throw new Error(`select user malformed result`)
       }
 
       await client.query(
-        this.commonUserLogInsertSql,
+        this.insertUserLogSql,
         [
-          rowSelectUpdated['id'],
-          rowSelectUpdated['id'],
+          rowSelectUser['id'],
+          rowSelectUser['id'],
           'user_activate',
-          rowSelectUpdated['status'],
-          rowSelectUpdated['role'],
+          rowSelectUser['status'],
+          rowSelectUser['role'],
           { from }
         ]
       )
 
-      const sessionUser = buildSessionUser(rowSelectUpdated)
+      const sessionUser = buildSessionUser(rowSelectUser)
 
       await client.query('COMMIT')
 
@@ -230,44 +242,50 @@ export class PostgresService {
     const client = await this.pool.connect()
 
     try {
-      const resultSelect = await client.query(
-        this.getUserSelectSql,
+      const resultSelectUser = await client.query(
+        this.selectUserByIdSql,
         [id]
       )
 
-      if (resultSelect.rowCount === 0) {
-        throw new Error(`expected user ${id} not exists`)
+      if (resultSelectUser.rowCount === 0) {
+        throw new Error(`expected user does not exists`)
       }
 
-      const rowSelect = resultSelect.rows.shift()
-      if (!isRowUser(rowSelect)) {
-        throw new Error(`selected row validation failed`)
+      const rowSelectUser = resultSelectUser.rows.shift()
+      if (!isRowUser(rowSelectUser)) {
+        throw new Error(`validate RowUser failed`)
       }
 
       const resultSelectPhotosCount = await client.query(
-        this.getUserSelectPhotosCountSql,
-        [id]
+        this.selectPhotosCountByUserIdSql,
+        [
+          rowSelectUser['id'],
+          'approved'
+        ]
       )
 
       const rowSelectPhotosCount = resultSelectPhotosCount.rows.shift()
       if (!isRowCount(rowSelectPhotosCount)) {
-        throw new Error(`selected row count validation failed`)
+        throw new Error(`validate RowCount failed`)
       }
 
       const resultSelectCommentsCount = await client.query(
-        this.getUserSelectCommentsCountSql,
-        [id]
+        this.selectCommentsCountByUserIdSql,
+        [
+          rowSelectUser['id'],
+          'approved'
+        ]
       )
 
       const rowSelectCommentsCount = resultSelectCommentsCount.rows.shift()
       if (!isRowCount(rowSelectCommentsCount)) {
-        throw new Error(`selected row count validation failed`)
+        throw new Error(`validate RowCount failed`)
       }
 
       const user = buildUser(
-        rowSelect,
-        rowSelectPhotosCount.count,
-        rowSelectCommentsCount.count
+        rowSelectUser,
+        rowSelectPhotosCount,
+        rowSelectCommentsCount
       )
 
       return user
@@ -282,7 +300,7 @@ export class PostgresService {
     userId: number,
     topicId: number,
     tgId: number,
-    tgFileId: string
+    tgFileId: string,
     from: unknown
   ): Promise<Photo> {
     const client = await this.pool.connect()
@@ -290,62 +308,80 @@ export class PostgresService {
     try {
       await client.query('BEGIN')
 
-      const resultSelectLock = await client.query(
-        this.commonSessionUserSelectLockSql,
+      const resultSelectUser = await client.query(
+        this.selectSessionUserByIdForShareSql,
         [userId]
       )
 
-      if (resultSelectLock.rowCount === 0) {
-        throw new Error(`expected user ${userId} not exists`)
+      if (resultSelectUser.rowCount === 0) {
+        throw new Error(`expected user does not exists`)
       }
 
-      const rowSelectLock = resultSelectLock.rows.shift()
-      if (!isRowSessionUser(rowSelectLock)) {
-        throw new Error(`select row validation failed`)
+      const rowSelectUser = resultSelectUser.rows.shift()
+      if (!isRowSessionUser(rowSelectUser)) {
+        throw new Error(`select user malformed result`)
       }
 
-      if (rowSelectLock['status'] !== 'active') {
-        throw new Error(`only active users can post photos`)
+      if (rowSelectUser['status'] !== 'active') {
+        throw new Error(`only active user can create photo`)
       }
 
-      const resultInsert = await client.query(
-        this.newPhotoInsertSql,
+      const resultSelectTopic = await client.query(
+        this.selectTopicByIdForShareSql,
+        [topicId]
+      )
+
+      if (resultSelectTopic.rowCount === 0) {
+        throw new Error(`expected topic does not exists`)
+      }
+
+      const rowSelectTopic = resultSelectTopic.rows.shift()
+      if (!isRowTopic(rowSelectTopic)) {
+        throw new Error(`select topic malformed result`)
+      }
+
+      if (rowSelectTopic['status'] !== 'available') {
+        throw new Error(`only in available topic can create photo`)
+      }
+
+      const resultInsertPhoto = await client.query(
+        this.insertPhotoSql,
         [
-          userId,
-          topicId,
+          rowSelectUser['id'],
+          rowSelectTopic['id'],
           tgId,
           tgFileId,
           { from }
         ]
       )
 
-      const rowInsert = resultInsert.rows.shift()
-      if (!isRowId(rowInsert)) {
-        throw new Error(`inserted row validation failed`)
+      const rowInsertPhoto = resultInsertPhoto.rows.shift()
+      if (!isRowId(rowInsertPhoto)) {
+        throw new Error(`insert photo malformed result`)
       }
 
-      const resultSelectInserted = await client.query(
-        this.newPhotoSelectInsertedSql,
-        [rowInsert['id']]
+      const resultSelectPhoto = await client.query(
+        this.selectPhotoByIdForShareSql,
+        [rowInsertPhoto['id']]
       )
 
-      const rowSelectInserted = resultSelectInserted.rows.shift()
-      if (!isRowPhoto(rowSelectInserted)) {
-        throw new Error(`selected row validation failed`)
+      const rowSelectPhoto = resultSelectPhoto.rows.shift()
+      if (!isRowPhoto(rowSelectPhoto)) {
+        throw new Error(`select photo malformed result`)
       }
 
       await client.query(
-        this.commonPhotoLogInsertSql,
+        this.insertPhotoLogSql,
         [
-          rowSelectInserted['id'],
-          rowSelectInserted['user_id'],
+          rowSelectPhoto['id'],
+          rowSelectPhoto['user_id'],
           'photo_create',
-          rowSelectInserted['status'],
+          rowSelectPhoto['status'],
           { from }
         ]
       )
 
-      const photo = buildPhoto(rowSelectInserted)
+      const photo = buildPhoto(rowSelectPhoto)
 
       await client.query('COMMIT')
 
@@ -363,20 +399,163 @@ export class PostgresService {
     const client = await this.pool.connect()
 
     try {
-      const resultSelect = await client.query(
-        this.getPhotosUserSelectSql,
+      const resultSelectUser = await client.query(
+        this.selectSessionUserByIdForShareSql,
         [userId]
       )
 
-      const rowsSelect = resultSelect.rows
-      if (!isRowsPhotos(rowsSelect)) {
-        throw new Error(`selected rows validation failed`)
+      if (resultSelectUser.rowCount === 0) {
+        throw new Error(`expected user does not exists`)
       }
 
-      const photos = buildPhotos(rowsSelect)
+      const rowSelectUser = resultSelectUser.rows.shift()
+      if (!isRowSessionUser(rowSelectUser)) {
+        throw new Error(`select user malformed result`)
+      }
+
+      if (rowSelectUser['status'] !== 'active') {
+        throw new Error(`only active user can create photo`)
+      }
+
+      const resultSelectPhotos = await client.query(
+        this.selectPhotosByUserIdSql,
+        [rowSelectUser['id'], 'approved']
+      )
+
+      const rowsSelectPhotos = resultSelectPhotos.rows
+      if (!isRowsPhotos(rowsSelectPhotos)) {
+        throw new Error(`select photos malformed result`)
+      }
+
+      const photos = buildPhotos(rowsSelectPhotos)
 
       return photos
     } catch (error) {
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  async newComment(
+    userId: number,
+    topicId: number,
+    photoId: number,
+    tgId: number,
+    text: string,
+    from: unknown
+  ): Promise<Comment> {
+    const client = await this.pool.connect()
+
+    try {
+      await client.query('BEGIN')
+
+      const resultSelectUser = await client.query(
+        this.selectSessionUserByIdForShareSql,
+        [userId]
+      )
+
+      if (resultSelectUser.rowCount === 0) {
+        throw new Error(`expected user does not exists`)
+      }
+
+      const rowSelectUser = resultSelectUser.rows.shift()
+      if (!isRowSessionUser(rowSelectUser)) {
+        throw new Error(`select user malformed result`)
+      }
+
+      if (rowSelectUser['status'] !== 'active') {
+        throw new Error(`only active user can create comment`)
+      }
+
+      const resultSelectTopic = await client.query(
+        this.selectTopicByIdForShareSql,
+        [topicId]
+      )
+
+      if (resultSelectTopic.rowCount === 0) {
+        throw new Error(`expected topic does not exists`)
+      }
+
+      const rowSelectTopic = resultSelectTopic.rows.shift()
+      if (!isRowTopic(rowSelectTopic)) {
+        throw new Error(`select topic malformed result`)
+      }
+
+      if (rowSelectTopic['status'] !== 'available') {
+        throw new Error(`only in available topic can create comment`)
+      }
+
+      const resultSelectPhoto = await client.query(
+        this.selectPhotoByIdForShareSql,
+        [photoId]
+      )
+
+      if (resultSelectPhoto.rowCount === 0) {
+        throw new Error(`expected photo does not exists`)
+      }
+
+      const rowSelectPhoto = resultSelectPhoto.rows.shift()
+      if (!isRowPhoto(rowSelectPhoto)) {
+        throw new Error(`select photo malformed result`)
+      }
+
+      if (rowSelectPhoto['status'] !== 'approved') {
+        throw new Error(`only in approved photo can create comment`)
+      }
+
+      const resultInsertComment = await client.query(
+        this.insertCommentSql,
+        [
+          rowSelectUser['id'],
+          rowSelectTopic['id'],
+          rowSelectPhoto['id'],
+          tgId,
+          'approved',
+          text,
+          { from }
+        ]
+      )
+
+      const rowInsertComment = resultInsertComment.rows.shift()
+      if (!isRowId(rowInsertComment)) {
+        throw new Error(`insert comment malformed result`)
+      }
+
+      const resultSelectComment = await client.query(
+        this.selectCommentByIdForShareSql,
+        [rowInsertComment['id']]
+      )
+
+      const rowSelectComment = resultSelectComment.rows.shift()
+      if (!isRowComment(rowSelectComment)) {
+        throw new Error(`select comment malformed result`)
+      }
+
+      await client.query(
+        this.updateUserLastActivityTimeSql,
+        [rowSelectUser['id']]
+      )
+
+      await client.query(
+        this.insertCommentLogSql,
+        [
+          rowSelectComment['id'],
+          rowSelectComment['user_id'],
+          'comment_create',
+          rowSelectComment['status'],
+          { from }
+        ]
+      )
+
+      const comment = buildComment(rowSelectComment)
+
+      await client.query('COMMIT')
+
+      return comment
+    } catch (error) {
+      await client.query('ROLLBACK')
+
       throw error
     } finally {
       client.release()
@@ -387,17 +566,35 @@ export class PostgresService {
     const client = await this.pool.connect()
 
     try {
-      const resultSelect = await client.query(
-        this.getCommentsUserSelectSql,
+      const resultSelectUser = await client.query(
+        this.selectSessionUserByIdForShareSql,
         [userId]
       )
 
-      const rowsSelect = resultSelect.rows
-      if (!isRowsComments(rowsSelect)) {
-        throw new Error(`selected rows validation failed`)
+      if (resultSelectUser.rowCount === 0) {
+        throw new Error(`expected user does not exists`)
       }
 
-      const comments = buildComments(rowsSelect)
+      const rowSelectUser = resultSelectUser.rows.shift()
+      if (!isRowSessionUser(rowSelectUser)) {
+        throw new Error(`select user malformed result`)
+      }
+
+      if (rowSelectUser['status'] !== 'active') {
+        throw new Error(`only active user can create comment`)
+      }
+
+      const resultSelectComments = await client.query(
+        this.selectCommentsByUserIdSql,
+        [rowSelectUser['id'], 'approved']
+      )
+
+      const rowsSelectComments = resultSelectComments.rows
+      if (!isRowsComments(rowsSelectComments)) {
+        throw new Error(`select comments malformed result`)
+      }
+
+      const comments = buildComments(rowsSelectComments)
 
       return comments
     } catch (error) {
@@ -407,22 +604,7 @@ export class PostgresService {
     }
   }
 
-  private readonly authorizeUserSelectExistsSql = `
-SELECT
-  id, tg_id, nick, gender, status, role, register_time, last_activity_time
-FROM users
-WHERE tg_id = $1
-FOR SHARE
-`
-
-  private readonly authorizeUserInsertSql = `
-INSERT INTO users
-  (tg_id, status, role)
-VALUES ($1, $2, $3)
-RETURNING id
-`
-
-  private readonly authorizeUserSelectInsertedSql = `
+  private readonly selectSessionUserByIdForShareSql = `
 SELECT
   id, tg_id, nick, gender, status, role, register_time, last_activity_time
 FROM users
@@ -430,11 +612,7 @@ WHERE id = $1
 FOR SHARE
 `
 
-  private readonly checkUserNickSelectSql = `
-SELECT id FROM users WHERE nick = $1
-`
-
-  private readonly activateUserSelectLockSql = `
+  private readonly selectSessionUserByIdForUpdateSql = `
 SELECT
   id, tg_id, nick, gender, status, role, register_time, last_activity_time
 FROM users
@@ -442,31 +620,15 @@ WHERE id = $1
 FOR UPDATE
 `
 
-  private readonly activateUserSelectNickSql = `
-SELECT id FROM users WHERE nick = $1 FOR SHARE
-`
-
-  private readonly activateUserUpdateSql = `
-UPDATE users SET
-  nick = $1,
-  gender = $2,
-  status = 'active',
-  avatar_tg_file_id = $3,
-  about = $4,
-  last_activity_time = NOW()
-WHERE id = $5
-RETURNING id
-`
-
-  private readonly activateUserSelectUpdatedSql = `
+  private readonly selectSessionUserByTgIdForShareSql = `
 SELECT
   id, tg_id, nick, gender, status, role, register_time, last_activity_time
 FROM users
-WHERE id = $1
+WHERE tg_id = $1
 FOR SHARE
 `
 
-  private readonly getUserSelectSql = `
+  private readonly selectUserByIdSql = `
 SELECT
   id, tg_id, nick, gender, status, role, avatar_tg_file_id, about,
   register_time, last_activity_time
@@ -474,90 +636,178 @@ FROM users
 WHERE id = $1
 `
 
-  private readonly getUserSelectPhotosCountSql = `
-SELECT
-  COUNT() AS count
-FROM photos
-WHERE user_id = $1 AND status IN ('unknown', 'approved')
+  private readonly selectUserByNickSql = `
+SELECT id FROM users WHERE nick = $1
 `
 
-  private readonly getUserSelectCommentsCountSql = `
-SELECT
-  COUNT() AS count
-FROM comments
-WHERE user_id = $1 AND status IN ('unknown', 'approved')
+  private readonly insertUserSql = `
+INSERT INTO users
+  (tg_id, status, role)
+VALUES ($1, $2, $3)
+RETURNING id
 `
 
-  private readonly getPhotosUserSelectSql = `
+  private readonly updateUserActivateSql = `
+UPDATE users SET
+  nick = $1,
+  gender = $2,
+  status = $3,
+  avatar_tg_file_id = $4,
+  about = $5,
+  last_activity_time = NOW()
+WHERE id = $6
+RETURNING id
+`
+
+  private readonly updateUserLastActivityTimeSql = `
+UPDATE users SET
+  last_activity_time = NOW()
+WHERE id = $1
+`
+
+  private readonly insertUserLogSql = `
+INSERT INTO user_logs
+  (user_id, mod_user_id, action, status, role, data)
+VALUES ($1, $2, $3, $4, $5, $6)
+`
+
+  private readonly selectTopicByIdForShareSql = `
+SELECT
+  id, ...
+FROM topics
+WHERE id = $1
+FOR SHARE
+`
+
+  private readonly selectTopicByIdForUpdateSql = `
+SELECT
+  id, ...
+FROM topics
+WHERE id = $1
+FOR UPDATE
+`
+
+  private readonly insertTopicSql = `
+INSERT INTO topics
+  (...)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id
+`
+
+  private readonly insertTopicLogSql = `
+INSERT INTO topic_logs
+  (topic_id, mod_user_id, action, status, data)
+VALUES ($1, $2, $3, $4, $5)
+`
+
+  private readonly selectPhotoByIdForShareSql = `
 SELECT
   id, user_id, topic_id, tg_id, tg_file_id, status, create_time
 FROM photos
-WHERE user_id = $1 AND status IN ('unknown', 'approved')
-ORDER BY create_time DESC
+WHERE id = $1
+FOR SHARE
 `
 
-  private readonly getCommentsUserSelectSql = `
+  private readonly selectPhotoByIdForUpdateSql = `
 SELECT
-  id, user_id, topic_id, photo_id, tg_id, status, text, create_time
-FROM comments
-WHERE user_id = $1 AND status IN ('unknown', 'approved')
+  id, user_id, topic_id, tg_id, tg_file_id, status, create_time
+FROM photos
+WHERE id = $1
+FOR UPDATE
+`
+
+  private readonly selectPhotosByUserIdSql = `
+SELECT
+  id, user_id, topic_id, tg_id, tg_file_id, status, create_time
+FROM photos
+WHERE user_id = $1 AND status = $2
 ORDER BY create_time DESC
 `
 
-  private readonly newPhotoInsertSql = `
+  private readonly selectPhotosCountByUserIdSql = `
+SELECT
+  COUNT(*)::INTEGER AS count
+FROM photos
+WHERE user_id = $1 AND status = $2
+`
+
+  private readonly insertPhotoSql = `
 INSERT INTO photos
   (user_id, topic_id, tg_id, tg_file_id, status)
 VALUES ($1, $2, $3, $4, $5)
 RETURNING id
 `
 
-  private readonly newRateInsertSql = `
+  private readonly updatePhotoStatusSql = `
+UPDATE photos SET
+  status = $1
+WHERE id = $2
+RETURNING id
+`
+
+  private readonly insertPhotoLogSql = `
+INSERT INTO photo_logs
+  (photo_id, mod_user_id, action, status, data)
+VALUES ($1, $2, $3, $4, $5)
+`
+
+
+
+  private readonly insertRateSql = `
 INSERT INTO rates
   (user_id, topic_id, photo_id, tg_id, value)
 VALUES ($1, $2, $3, $4, $5)
 RETURNING id
 `
 
-  private readonly newCommentInsertSql = `
+  private readonly insertRateLogSql = `
+INSERT INTO rate_logs
+  (rate_id, mod_user_id, action, value, data)
+VALUES ($1, $2, $3, $4, $5)
+`
+
+
+
+
+  private readonly selectCommentByIdForShareSql = `
+SELECT
+  id, user_id, topic_id, photo_id, tg_id, status, text, create_time
+FROM comments
+WHERE id = $1
+FOR SHARE
+`
+
+  private readonly selectCommentByIdForUpdateSql = `
+SELECT
+  id, user_id, topic_id, photo_id, tg_id, status, text, create_time
+FROM comments
+WHERE id = $1
+FOR UPDATE
+`
+
+  private readonly selectCommentsByUserIdSql = `
+SELECT
+  id, user_id, topic_id, photo_id, tg_id, status, text, create_time
+FROM comments
+WHERE user_id = $1 AND status = $2
+ORDER BY create_time DESC
+`
+
+  private readonly selectCommentsCountByUserIdSql = `
+SELECT
+  COUNT(*)::INTEGER AS count
+FROM comments
+WHERE user_id = $1 AND status = $2
+`
+
+  private readonly insertCommentSql = `
 INSERT INTO comments
   (user_id, topic_id, photo_id, tg_id, status, text)
 VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id
 `
 
-  private readonly commonUserSelectLockSql = `
-SELECT
-  id, tg_id, nick, gender, status, role, register_time, last_activity_time
-FROM users
-WHERE id = $1
-FOR SHARE
-`
-
-  private readonly commonUserLogInsertSql = `
-INSERT INTO user_logs
-  (user_id, mod_user_id, action, status, role, data)
-VALUES ($1, $2, $3, $4, $5, $6)
-`
-
-  private readonly commonTopicLogInsertSql = `
-INSERT INTO topic_logs
-  (topic_id, mod_user_id, action, status, data)
-VALUES ($1, $2, $3, $4, $5)
-`
-
-  private readonly commonPhotoLogInsertSql = `
-INSERT INTO photo_logs
-  (photo_id, mod_user_id, action, status, data)
-VALUES ($1, $2, $3, $4, $5)
-`
-
-  private readonly commonRateLogInsertSql = `
-INSERT INTO rate_logs
-  (rate_id, mod_user_id, action, value, data)
-VALUES ($1, $2, $3, $4, $5)
-`
-
-  private readonly commonCommentLogInsertSql = `
+  private readonly insertCommentLogSql = `
 INSERT INTO comment_logs
   (comment_id, mod_user_id, action, status, data)
 VALUES ($1, $2, $3, $4, $5)

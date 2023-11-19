@@ -1,5 +1,5 @@
 import { Context, Scenes } from 'telegraf'
-import { SessionUser, Register } from './user.js'
+import { SessionUser, Navigation, Register } from './user.js'
 
 export interface AppOptions {
   botToken: string
@@ -22,6 +22,7 @@ export interface AppWizardSession extends Scenes.WizardSessionData {
 
 export interface AppSession extends Scenes.WizardSession<AppWizardSession> {
   user?: SessionUser
+  navigation?: Navigation
 }
 
 export interface AppContext extends Context {
@@ -41,4 +42,7 @@ export type AppContextExceptionHandler = (
   ctx: AppContext,
 ) => Promise<unknown | void>
 
-export type CheckSessionUserHandler = (sessionUser: SessionUser) => Promise<void>
+export type CheckSessionUserHandler = (
+  sessionUser: SessionUser,
+  navigation: Navigation
+) => Promise<void>

@@ -17,8 +17,6 @@ import { ProfileController } from './controllers/profile.js'
 //import { PhotoController } from './controllers/photo.js'
 //import { SearchController } from './controllers/photo.js'
 import {
-  getSessionUser,
-  setSessionUser,
   getEmojiGender,
   markupKeyboardCheckGroup,
   markupKeyboardCheckChannel
@@ -79,14 +77,7 @@ export class App {
     //this.bot.command('photo', this.photoCommandHandler)
     //this.bot.command('search', this.searchCommandHandler)
 
-    this.bot.hears(
-      [
-        'Я уже подписан на группу',
-        'Я уже подписан на канал',
-        'Окей, давай дальше',
-      ],
-      this.startCommandHandler
-    )
+    this.bot.action('check-membership', this.startCommandHandler)
 
     this.bot.on('chat_join_request', this.chatJoinRequestHandler)
 
@@ -112,8 +103,8 @@ export class App {
   }
 
   private authorizeHandler: AppContextHandler = async (ctx, next) => {
-    if (ctx.from !== undefined) {
-      const { 'id': fromId, 'is_bot': fromIsBot } = ctx.from
+    if (ctx.from !== undefined && ctx.chat !== undefined) {
+      const { id: fromId, is_bot: fromIsBot } = ctx.from
 
       if (!fromIsBot) {
         const sessionUser = await this.postgresService.authorizeUser(
@@ -122,7 +113,15 @@ export class App {
         )
 
         if (sessionUser.status !== 'banned') {
-          setSessionUser(ctx, sessionUser)
+          ctx.session.user = sessionUser
+
+          if (ctx.session.navigation === undefined) {
+            ctx.session.navigation = {
+              messageId: null,
+              currentPage: 0,
+              totalPages: 0
+            }
+          }
 
           await next()
         } else {
@@ -132,18 +131,23 @@ export class App {
         logger.info(`Bot authorize: ignore bot ${fromId}`)
       }
     } else {
-      logger.info(`Bot authorize: skip undefined from`)
-      console.dir(ctx)
+      logger.warn(`Bot authorize: skip unknown source`)
+      console.dir(ctx, { depth: 4 })
     }
   }
 
   private membershipHandler: AppContextHandler = async (ctx, next) => {
     const { groupChatId, channelChatId } = this.options
 
-    const sessionUser = getSessionUser(ctx)
+    if (
+      ctx.from !== undefined &&
+      ctx.chat !== undefined &&
+      ctx.session.user !== undefined
+    ) {
+      const { id: fromId } = ctx.from
+      const { id: chatId, type: chatType } = ctx.chat
 
-    if (ctx.chat !== undefined) {
-      const { 'type': chatType } = ctx.chat
+      const sessionUser = ctx.session.user
 
       if (chatType === 'private') {
         const allowedStatuses = [
@@ -154,87 +158,91 @@ export class App {
 
         const groupMember = await ctx.telegram.getChatMember(
           groupChatId,
-          sessionUser.tgId
+          fromId
         )
 
         if (allowedStatuses.includes(groupMember.status)) {
           sessionUser.isGroupMember = true
-          logger.info(`Bot membership: success for group`)
         }
 
         const channelMember = await ctx.telegram.getChatMember(
           channelChatId,
-          sessionUser.tgId
+          fromId
         )
 
         if (allowedStatuses.includes(channelMember.status)) {
           sessionUser.isChannelMember = true
-          logger.info(`Bot membership: success for channel`)
         }
 
         await next()
       } else {
-        logger.info(`Bot membership: skip not private chat`)
+        logger.info(`Bot membership: skip ${chatType} chatType`)
+
         await next()
       }
     } else {
-      logger.info(`Bot membership: skip undefined chat`)
+      logger.info(`Bot membership: skip unknown source`)
+
       await next()
     }
   }
 
   private startCommandHandler: AppContextHandler = async (ctx) => {
-    await this.checkSessionUser(ctx, async (sessionUser) => {
+    await this.checkSessionUser(ctx, async (sessionUser, navigation) => {
       const emojiGender = getEmojiGender(sessionUser.gender)
-      await ctx.replyWithMarkdownV2(
-        `Бот приветствует тебя, ${emojiGender} *${sessionUser.nick}*!\n` +
-        `... Описание сервиса ...\n` +
-        `Ты можешь загрузить до 3 фото в течении 24 часов`
+
+      const message = await ctx.replyWithMarkdownV2(
+        `Бот приветствует тебя, ${emojiGender} *${sessionUser.nick}*\n` +
+        `Описание сервиса`
       )
+
+      navigation.messageId = message.message_id
     })
   }
 
   private profileCommandHandler: AppContextHandler = async (ctx) => {
     await this.checkSessionUser(ctx, async (sessionUser) => {
-      await ctx.scene.enter('profile-scene')
+      await ctx.scene.enter('profile')
     })
   }
 
   private photoCommandHandler: AppContextHandler = async (ctx) => {
     await this.checkSessionUser(ctx, async (sessionUser) => {
-      await ctx.scene.enter('profile-scene')
+      await ctx.scene.enter('profile')
     })
   }
 
   private chatJoinRequestHandler: AppContextHandler = async (ctx) => {
     const { groupChatId, channelChatId } = this.options
 
-    const sessionUser = getSessionUser(ctx)
+    const sessionUser = ctx.session.user
 
-    console.log(`chatJoinRequestHandler`)
-    //console.dir(ctx.chatJoinRequest)
+    if (sessionUser === undefined) {
+      throw new Error(`context session user lost`)
+    }
 
     if (ctx.chatJoinRequest !== undefined) {
-      const { 'id': chatId } =  ctx.chatJoinRequest.chat
-      const { 'id': fromId } =  ctx.chatJoinRequest.from
+      const { id: chatId } =  ctx.chatJoinRequest.chat
+      const { id: fromId } =  ctx.chatJoinRequest.from
 
       if (chatId === groupChatId || chatId === channelChatId) {
         const isSuccess = await ctx.telegram.approveChatJoinRequest(
           chatId,
-          sessionUser.tgId
+          fromId
         )
 
-        if (!isSuccess) {
-          logger.warn(`Bot declined approveChatJoinRequest`)
-          console.dir(ctx.chatJoinRequest)
+        if (isSuccess) {
+          logger.info(`ChatJoinRequest: success user: ${fromId}`)
+        } else {
+          logger.warn(`ChatJoinRequest: failed user: ${fromId}`)
         }
       } else {
-        logger.info(`Bot ignore chatJoinRequest unknown group`)
-        console.dir(ctx.chatJoinRequest)
+        logger.warn(`ChatJoinRequest: ignore unknown group: ${chatId}`)
+        console.dir(ctx.chatJoinRequest, { depth: 4 })
       }
     } else {
-      logger.info(`Bot ignore chatJoinRequest undefined`)
-      console.dir(ctx.chatJoinRequest)
+      logger.warn(`ChatJoinRequest: skip unknown`)
+      console.dir(ctx, { depth: 4 })
     }
   }
 
@@ -244,21 +252,40 @@ export class App {
   ): Promise<void> => {
     const { groupUrl, channelUrl } = this.options
 
-    const sessionUser = getSessionUser(ctx)
+    const sessionUser = ctx.session.user
+    const navigation = ctx.session.navigation
+
+    if (sessionUser === undefined) {
+      throw new Error(`context session user lost`)
+    }
+
+    if (navigation === undefined) {
+      throw new Error(`context session navigation lost`)
+    }
+
+    if (navigation.messageId !== null) {
+      await ctx.deleteMessage(navigation.messageId)
+
+      navigation.messageId = null
+    }
 
     if (sessionUser.status === 'register') {
-      await ctx.scene.enter('register-scene')
+      await ctx.scene.enter('register')
     } else {
       if (!sessionUser.isGroupMember) {
-        await ctx.replyWithMarkdownV2(
-          `Ты еще не подписан на [группу](${groupUrl})`,
+        const message = await ctx.replyWithMarkdownV2(
+          `Подпишись на [группу](${groupUrl})`,
           markupKeyboardCheckGroup()
         )
+
+        navigation.messageId = message.message_id
       } else if (!sessionUser.isChannelMember) {
-        await ctx.replyWithMarkdownV2(
-          `Ты еще не подписан на [канал](${channelUrl})`,
+        const message = await ctx.replyWithMarkdownV2(
+          `Подпишись на [канал](${channelUrl})`,
           markupKeyboardCheckChannel()
         )
+
+        navigation.messageId = message.message_id
       } else {
         await handler(sessionUser)
       }
@@ -267,27 +294,32 @@ export class App {
 
   private changeChatMemberHandler: AppContextHandler = async (ctx) => {
     logger.info(`Bot changeChatMemberHandler`)
-    console.dir(ctx.message)
+    console.dir(ctx, { depth: 4 })
   }
 
   private unknownHandler: AppContextHandler = async (ctx) => {
-    if (ctx.chat !== undefined) {
-      const { 'type': chatType } = ctx.chat
+    if (ctx.from !== undefined && ctx.chat !== undefined) {
+      const { type: chatType } = ctx.chat
 
       if (chatType === 'private') {
-        await ctx.replyWithMarkdownV2(`Неизвестная команда`)
+        await ctx.replyWithMarkdownV2(
+          `Неизвестная команда`
+        )
       }
-    }
 
-    logger.info(`Bot unknown message`)
-    console.dir(ctx.message)
+      logger.warn(`Bot unknown ${chatType} message`)
+      console.dir(ctx, { depth: 4 })
+    } else {
+      logger.warn(`Bot unknown message`)
+      console.dir(ctx, { depth: 4 })
+    }
   }
 
   private exceptionHandler = (error: unknown, ctx: AppContext) => {
     if (error instanceof Error) {
       logger.error(`App error: ${error.message}`)
       console.error(error.stack)
-      console.dir(ctx.message)
+      console.dir(ctx, { depth: 4 })
     }
   }
 }

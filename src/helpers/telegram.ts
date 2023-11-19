@@ -2,11 +2,8 @@ import { Markup } from 'telegraf'
 import { ReplyKeyboardMarkup, User } from 'telegraf/types'
 import { AppContext, AppWizardSession } from '../interfaces/app.js'
 import { SessionUser, UserGender, Register } from '../interfaces/user.js'
-import { USER_GENDERS } from '../constants/user.js'
-
-//
-// Wrappers
-//
+import { USER_NICK_REGEXP, USER_GENDERS } from '../constants/user.js'
+import { GENDER_EMOJIS, GENDER_EMOJI_UNKNOWN } from '../constants/misc.js'
 
 export const getFrom = (ctx: AppContext): User => {
   const from = ctx.from
@@ -52,23 +49,21 @@ export const newSceneSessionRegister = (ctx: AppContext) => {
   ctx.scene.session.register = {}
 }
 
-//
-// Helpers
-//
+export const getEmojiGender = (gender: UserGender | null): string => {
+  let genderEmoji: string | undefined
 
-export const getEmojiGender = (gender: UserGender): string => {
-  const genderEmojis: { [key: string ]: string } = {
-    'male': '\u{1F57A}',
-    'female': '\u{1F483}',
-    'couple': '\u{1F46B}'
+  if (gender !== null) {
+    genderEmoji = GENDER_EMOJIS[gender]
+
+    if (genderEmoji === undefined) {
+      throw new Error(`unknown gender '${gender}'`)
+    }
+  } else {
+    genderEmoji = GENDER_EMOJI_UNKNOWN
   }
 
-  return genderEmojis[gender] ?? '\u{1F601}'
+  return genderEmoji
 }
-
-//
-// Type Guards
-//
 
 export const isUserGender = (userGender: unknown): userGender is UserGender => {
   return (
@@ -108,11 +103,19 @@ export const isSceneSessionRegister = (
   )
 }
 
-//
-// Keyboards
-//
+export const markupKeyboardCheckGroup = () => {
+  return Markup.inlineKeyboard([
+    Markup.button.callback('Я уже подписан на группу', 'check-membership'),
+  ])
+}
 
-export const markupInlineKeyboardGender = () => {
+export const markupKeyboardCheckChannel = () => {
+  return Markup.inlineKeyboard([
+    Markup.button.callback('Я уже подписан на канал', 'check-membership'),
+  ])
+}
+
+export const markupKeyboardGender = () => {
   return Markup.inlineKeyboard([
     Markup.button.callback(`Мужской`, 'male'),
     Markup.button.callback(`Женский`, 'female'),
@@ -120,7 +123,7 @@ export const markupInlineKeyboardGender = () => {
   ])
 }
 
-export const markupInlineKeyboardProfile = () => {
+export const markupKeyboardProfile = () => {
   return Markup.inlineKeyboard([
     Markup.button.callback('Редактировать аватар', 'edit-avatar'),
     Markup.button.callback('Редактировать о себе', 'edit-about'),
@@ -128,15 +131,11 @@ export const markupInlineKeyboardProfile = () => {
   ])
 }
 
-export const markupKeyboardCheckGroup = () => {
+export const markupKeyboardPhoto = () => {
   return Markup.inlineKeyboard([
-    Markup.button.callback('Я уже подписан на группу', 'group-check'),
+    Markup.button.callback('Предыдущее', 'photo-prev'),
+    Markup.button.callback('Просмотр', 'photo-view'),
+    Markup.button.callback('Следующее', 'photo-next'),
+    Markup.button.callback('Удалить', 'photo-delete'),
   ])
 }
-
-export const markupKeyboardCheckChannel = () => {
-  return Markup.inlineKeyboard([
-    Markup.button.callback('Я уже подписан на канал', 'channel-check'),
-  ])
-}
-

@@ -15,7 +15,7 @@ import {
   isUserGender,
   isUserNick,
   isUserAbout,
-  markupInlineKeyboardProfile
+  markupKeyboardProfile
 } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
 
@@ -26,7 +26,7 @@ export class ProfileController implements Controller {
   private postgresService = PostgresService.instance()
 
   constructor(private readonly options: AppOptions) {
-    this.scene = new Scenes.BaseScene<AppContext>('profile-scene')
+    this.scene = new Scenes.BaseScene<AppContext>('profile')
 
     this.scene.enter(this.enterSceneHandler)
     this.scene.leave(this.leaveSceneHandler)
@@ -45,7 +45,7 @@ export class ProfileController implements Controller {
     const user = await this.postgresService.getUser(sessionUser.id)
 
     const emojiGender = getEmojiGender(user.gender)
-    const extra = markupInlineKeyboardProfile()
+    const extra = markupKeyboardProfile()
 
     extra.caption =
       `${emojiGender} ${user.nick}\n` +

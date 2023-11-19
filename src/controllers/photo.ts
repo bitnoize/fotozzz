@@ -12,7 +12,7 @@ import { PostgresService } from '../services/postgres.js'
 import {
   getSessionUser,
   getEmojiGender,
-  markupInlineKeyboardPhoto
+  markupKeyboardPhoto
 } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
 
@@ -23,7 +23,7 @@ export class PhotoController implements Controller {
   private postgresService = PostgresService.instance()
 
   constructor(private readonly options: AppOptions) {
-    this.scene = new Scenes.BaseScene<AppContext>('photo-scene')
+    this.scene = new Scenes.BaseScene<AppContext>('photo')
 
     this.scene.enter(this.enterSceneHandler)
     this.scene.leave(this.leaveSceneHandler)

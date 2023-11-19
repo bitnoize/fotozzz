@@ -4,6 +4,12 @@ export type UserGender = (typeof USER_GENDERS)[number]
 export type UserStatus = (typeof USER_STATUSES)[number]
 export type UserRole = (typeof USER_ROLES)[number]
 
+export interface Navigation {
+  messageId: number | null
+  currentPage: number
+  totalPages: number
+}
+
 export interface SessionUser {
   id: number
   tgId: string
@@ -28,8 +34,8 @@ export interface User {
   about: string | null
   registerTime: Date
   lastActivityTime: Date
-  countPhotos: number
-  countComments: number
+  photosTotal: number
+  commentsTotal: number
 }
 
 export interface Register {

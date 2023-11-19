@@ -1,1 +1,1 @@
-export const PHOTO_STATUSES = ['unknown', 'approved', 'declined']
+export const PHOTO_STATUSES = ['approved', 'declined']

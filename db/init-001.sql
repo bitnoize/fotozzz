@@ -117,7 +117,7 @@ CREATE INDEX topic_logs_action_key ON topic_logs (action);
 --
 
 CREATE TYPE photo_status
-AS ENUM ('unknown', 'approved', 'declined');
+AS ENUM ('approved', 'declined');
 
 CREATE TABLE photos (
   id                  INTEGER GENERATED ALWAYS AS IDENTITY,
@@ -222,7 +222,7 @@ CREATE INDEX rate_logs_action_key ON rate_logs (action);
 --
 
 CREATE TYPE comment_status
-AS ENUM ('unknown', 'approved', 'declined');
+AS ENUM ('approved', 'declined');
 
 CREATE TABLE comments (
   id                  INTEGER GENERATED ALWAYS AS IDENTITY,
@@ -241,7 +241,7 @@ CREATE TABLE comments (
   UNIQUE(tg_id)
 );
 
-GRANT SELECT, INSERT, UPDATE ON users TO fotozzz_app;
+GRANT SELECT, INSERT, UPDATE ON comments TO fotozzz_app;
 GRANT USAGE, SELECT ON comments_id_seq TO fotozzz_app;
 
 CREATE INDEX comments_user_id_key ON comments (user_id);

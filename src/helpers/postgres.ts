@@ -3,14 +3,16 @@ import {
   RowCount,
   RowSessionUser,
   RowUser,
-  RowPhoto
+  RowTopic,
+  RowPhoto,
+  RowRate,
+  RowComment
 } from '../interfaces/postgres.js'
 import { SessionUser, User } from '../interfaces/user.js'
+import { Topic } from '../interfaces/topic.js'
 import { Photo } from '../interfaces/photo.js'
-
-//
-// Type Guards
-//
+import { Rate } from '../interfaces/rate.js'
+import { Comment } from '../interfaces/comment.js'
 
 export const isRowId = (
   rowId: unknown
@@ -64,6 +66,23 @@ export const isRowSessionUser = (
   )
 }
 
+export const buildSessionUser = (rowSessionUser: RowSessionUser): SessionUser => {
+  const sessionUser: SessionUser = {
+    id: rowSessionUser['id'],
+    tgId: rowSessionUser['tg_id'],
+    nick: rowSessionUser['nick'],
+    gender: rowSessionUser['gender'],
+    status: rowSessionUser['status'],
+    role: rowSessionUser['role'],
+    registerTime: rowSessionUser['register_time'],
+    lastActivityTime: rowSessionUser['last_activity_time'],
+    isGroupMember: false,
+    isChannelMember: false
+  }
+
+  return sessionUser
+}
+
 export const isRowUser = (
   rowUser: unknown
 ): rowUser is RowUser => {
@@ -100,14 +119,76 @@ export const isRowUser = (
   )
 }
 
-export const isRowsPhotos = (
-  rowsPhotos: unknown
-): rowsPhotos is RowPhoto[] => {
+export const buildUser = (
+  rowUser: RowUser,
+  rowPhotosCount: RowCount,
+  rowCommentsCount: RowCount
+): User => {
+  const user: User = {
+    id: rowUser['id'],
+    tgId: rowUser['tg_id'],
+    nick: rowUser['nick'],
+    gender: rowUser['gender'],
+    status: rowUser['status'],
+    role: rowUser['role'],
+    avatarTgFileId: rowUser['avatar_tg_file_id'],
+    about: rowUser['about'],
+    registerTime: rowUser['register_time'],
+    lastActivityTime: rowUser['last_activity_time'],
+    photosTotal: rowPhotosCount.count,
+    commentsTotal: rowCommentsCount.count,
+  }
+
+  return user
+}
+
+export const isRowTopic = (
+  rowTopic: unknown
+): rowTopic is RowTopic => {
   return (
-    rowsPhotos != null &&
-    Array.isArray(rowsPhotos) &&
-    rowsPhotos.some((rowPhoto) => isRowPhoto(rowPhoto))
+    rowTopic != null &&
+    typeof rowTopic === 'object' &&
+    'id' in rowTopic &&
+    typeof rowTopic['id'] === 'number' &&
+    'tg_id' in rowTopic &&
+    typeof rowTopic['tg_id'] === 'string' &&
+    'name' in rowTopic &&
+    typeof rowTopic['name'] === 'string' &&
+    'status' in rowTopic &&
+    typeof rowTopic['status'] === 'string' &&
+    'description' in rowTopic &&
+    typeof rowTopic['description'] === 'string' &&
+    'create_time' in rowTopic &&
+    typeof rowTopic['create_time'] === 'object' &&
+    rowTopic['create_time'] instanceof Date
   )
+}
+
+export const buildTopic = (rowTopic: RowTopic): Topic => {
+  const topic: Topic = {
+    id: rowTopic['id'],
+    tgId: rowTopic['tg_id'],
+    name: rowTopic['name'],
+    status: rowTopic['status'],
+    description: rowTopic['description'],
+    createTime: rowTopic['create_time']
+  }
+
+  return topic
+}
+
+export const isRowsTopics = (
+  rowsTopics: unknown
+): rowsTopics is RowTopic[] => {
+  return (
+    rowsTopics != null &&
+    Array.isArray(rowsTopics) &&
+    rowsTopics.some((rowTopic) => isRowTopic(rowTopic))
+  )
+}
+
+export const buildTopics = (rowsTopics: RowTopic[]): Topic[] => {
+  return rowsTopics.map((rowTopic) => buildTopic(rowTopic))
 }
 
 export const isRowPhoto = (
@@ -134,50 +215,6 @@ export const isRowPhoto = (
   )
 }
 
-//
-// Builders
-//
-
-export const buildSessionUser = (rowSessionUser: RowSessionUser): SessionUser => {
-  const sessionUser: SessionUser = {
-    id: rowSessionUser['id'],
-    tgId: rowSessionUser['tg_id'],
-    nick: rowSessionUser['nick'],
-    gender: rowSessionUser['gender'],
-    status: rowSessionUser['status'],
-    role: rowSessionUser['role'],
-    registerTime: rowSessionUser['register_time'],
-    lastActivityTime: rowSessionUser['last_activity_time'],
-    isGroupMember: false,
-    isChannelMember: false
-  }
-
-  return sessionUser
-}
-
-export const buildUser = (
-  rowUser: RowUser,
-  countPhotos: number,
-  countComments: number
-): User => {
-  const user: User = {
-    id: rowUser['id'],
-    tgId: rowUser['tg_id'],
-    nick: rowUser['nick'],
-    gender: rowUser['gender'],
-    status: rowUser['status'],
-    role: rowUser['role'],
-    avatarTgFileId: rowUser['avatar_tg_file_id'],
-    about: rowUser['about'],
-    registerTime: rowUser['register_time'],
-    lastActivityTime: rowUser['last_activity_time'],
-    countPhotos,
-    countComments
-  }
-
-  return user
-}
-
 export const buildPhoto = (rowPhoto: RowPhoto): Photo => {
   const photo: Photo = {
     id: rowPhoto['id'],
@@ -192,6 +229,71 @@ export const buildPhoto = (rowPhoto: RowPhoto): Photo => {
   return photo
 }
 
+export const isRowsPhotos = (
+  rowsPhotos: unknown
+): rowsPhotos is RowPhoto[] => {
+  return (
+    rowsPhotos != null &&
+    Array.isArray(rowsPhotos) &&
+    rowsPhotos.some((rowPhoto) => isRowPhoto(rowPhoto))
+  )
+}
+
 export const buildPhotos = (rowsPhotos: RowPhoto[]): Photo[] => {
   return rowsPhotos.map((rowPhoto) => buildPhoto(rowPhoto))
+}
+
+export const isRowComment = (
+  rowComment: unknown
+): rowComment is RowComment => {
+  return (
+    rowComment != null &&
+    typeof rowComment === 'object' &&
+    'id' in rowComment &&
+    typeof rowComment['id'] === 'number' &&
+    'user_id' in rowComment &&
+    typeof rowComment['user_id'] === 'number' &&
+    'topic_id' in rowComment &&
+    typeof rowComment['topic_id'] === 'number' &&
+    'photo_id' in rowComment &&
+    typeof rowComment['photo_id'] === 'number' &&
+    'tg_id' in rowComment &&
+    typeof rowComment['tg_id'] === 'string' &&
+    'status' in rowComment &&
+    typeof rowComment['status'] === 'string' &&
+    'text' in rowComment &&
+    typeof rowComment['text'] === 'string' &&
+    'create_time' in rowComment &&
+    typeof rowComment['create_time'] === 'object' &&
+    rowComment['create_time'] instanceof Date
+  )
+}
+
+export const buildComment = (rowComment: RowComment): Comment => {
+  const comment: Comment = {
+    id: rowComment['id'],
+    userId: rowComment['user_id'],
+    topicId: rowComment['topic_id'],
+    photoId: rowComment['photo_id'],
+    tgId: rowComment['tg_id'],
+    status: rowComment['status'],
+    text: rowComment['text'],
+    createTime: rowComment['create_time']
+  }
+
+  return comment
+}
+
+export const isRowsComments = (
+  rowsComments: unknown
+): rowsComments is RowComment[] => {
+  return (
+    rowsComments != null &&
+    Array.isArray(rowsComments) &&
+    rowsComments.some((rowComment) => isRowComment(rowComment))
+  )
+}
+
+export const buildComments = (rowsComments: RowComment[]): Comment[] => {
+  return rowsComments.map((rowComment) => buildComment(rowComment))
 }

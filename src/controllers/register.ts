@@ -10,15 +10,11 @@ import {
 import { RedisService } from '../services/redis.js'
 import { PostgresService } from '../services/postgres.js'
 import {
-  getSessionUser,
-  setSessionUser,
-  getSceneSessionRegister,
-  newSceneSessionRegister,
   isUserGender,
   isUserNick,
   isUserAbout,
   isSceneSessionRegister,
-  markupInlineKeyboardGender
+  markupKeyboardGender
 } from '../helpers/telegram.js'
 import { USER_GENDERS } from '../constants/user.js'
 import { logger } from '../logger.js'
@@ -31,7 +27,7 @@ export class RegisterController implements Controller {
 
   constructor(private readonly options: AppOptions) {
     this.scene = new Scenes.WizardScene<AppContext>(
-      'register-scene',
+      'register',
       this.enterSceneHandler,
       this.queryNickHandler,
       this.replyNickComposer(),
@@ -48,21 +44,35 @@ export class RegisterController implements Controller {
   }
 
   private enterSceneHandler: AppContextHandler = async (ctx, next) => {
-    newSceneSessionRegister(ctx)
+    const sessionUser = ctx.session.user
 
-    await ctx.reply(
-      `Ответь на несколько вопросов, чтобы завершить регистрацию`,
-      Markup.removeKeyboard()
+    if (sessionUser === undefined) {
+      throw new Error(`context session user lost`)
+    }
+
+    if (sessionUser.status !== 'register') {
+      throw new Error(`user status not allowed to enter scene`)
+    }
+
+    ctx.scene.session.register = {}
+
+    await ctx.replyWithMarkdownV2(
+      `Ответь на несколько вопросов, чтобы завершить регистрацию`
     )
 
     ctx.wizard.next()
-    if (typeof ctx.wizard.step === 'function') {
-      return ctx.wizard.step(ctx, next)
+
+    if (typeof ctx.wizard.step !== 'function') {
+      throw new Error(`context wizard step lost`)
     }
+
+    return ctx.wizard.step(ctx, next)
   }
 
   private queryNickHandler: AppContextHandler = async (ctx) => {
-    await ctx.reply(`Выбери ник`)
+    await ctx.replyWithMarkdownV2(
+      `Выбери ник`
+    )
 
     ctx.wizard.next()
   }
@@ -77,7 +87,11 @@ export class RegisterController implements Controller {
   }
 
   private replyNickTextHandler: AppContextHandler = async (ctx, next) => {
-    const sceneSessionRegister = getSceneSessionRegister(ctx)
+    const sceneSessionRegister = ctx.scene.session.register
+
+    if (sceneSessionRegister === undefined) {
+      throw new Error(`context scene session register lost`)
+    }
 
     if (ctx.has(message('text'))) {
       const userNick = ctx.message.text.toLowerCase()
@@ -89,29 +103,37 @@ export class RegisterController implements Controller {
           sceneSessionRegister.nick = userNick
 
           ctx.wizard.next()
-          if (typeof ctx.wizard.step === 'function') {
-            return ctx.wizard.step(ctx, next)
+
+          if (typeof ctx.wizard.step !== 'function') {
+            throw new Error(`context wizard step lost`)
           }
+
+          return ctx.wizard.step(ctx, next)
         } else {
-          await ctx.reply(`Этот ник уже используется, выбери другой`)
+          await ctx.replyWithMarkdownV2(
+            `Этот ник уже используется, выбери другой`
+          )
         }
       } else {
-        await ctx.reply(
-          `Неверный ввод, используй латинские буквы и цифры, от 4 до 20 символов`
+        await ctx.replyWithMarkdownV2(
+          `Некорректный ввод, попробуй еще раз`
         )
       }
     }
   }
 
   private replyNickUnknownHandler: AppContextHandler = async (ctx) => {
-    await ctx.reply(`Используй обычное текстовое сообщение!`)
+    await ctx.replyWithMarkdownV2(
+      `Используй обычное текстовое сообщение`
+    )
   }
 
   private queryGenderHandler: AppContextHandler = async (ctx) => {
-    await ctx.reply(
+    await ctx.replyWithMarkdownV2(
       'Укажи пол',
-      markupInlineKeyboardGender()
+      markupKeyboardGender()
     )
+
     ctx.wizard.next()
   }
 
@@ -125,7 +147,11 @@ export class RegisterController implements Controller {
   }
 
   private replyGenderActionHandler: AppContextHandler = async (ctx, next) => {
-    const sceneSessionRegister = getSceneSessionRegister(ctx)
+    const sceneSessionRegister = ctx.scene.session.register
+
+    if (sceneSessionRegister === undefined) {
+      throw new Error(`context scene session register lost`)
+    }
 
     const userGender = ctx.match.input
 
@@ -133,20 +159,29 @@ export class RegisterController implements Controller {
       sceneSessionRegister.gender = userGender
 
       ctx.wizard.next()
-      if (typeof ctx.wizard.step === 'function') {
-        return ctx.wizard.step(ctx, next)
+
+      if (typeof ctx.wizard.step !== 'function') {
+        throw new Error(`context wizard step lost`)
       }
+
+      return ctx.wizard.step(ctx, next)
     } else {
-      await ctx.reply('Некорректный ввод, попробуй еще раз')
+      await ctx.replyWithMarkdownV2(
+        `Некорректный ввод, попробуй еще раз`
+      )
     }
   }
 
   private replyGenderUnknownHandler: AppContextHandler = async (ctx) => {
-    await ctx.reply('Используй кнопки в сообщении!')
+    await ctx.replyWithMarkdownV2(
+      `Используй кнопки в сообщении`
+    )
   }
 
   private queryAvatarHandler: AppContextHandler = async (ctx) => {
-    await ctx.reply('Загрузи аватар')
+    await ctx.replyWithMarkdownV2(
+    `Загрузи аватар`
+    )
 
     ctx.wizard.next()
   }
@@ -161,7 +196,11 @@ export class RegisterController implements Controller {
   }
 
   private replyAvatarPhotoHandler: AppContextHandler = async (ctx, next) => {
-    const sceneSessionRegister = getSceneSessionRegister(ctx)
+    const sceneSessionRegister = ctx.scene.session.register
+
+    if (sceneSessionRegister === undefined) {
+      throw new Error(`context scene session register lost`)
+    }
 
     if (ctx.has(message('photo'))) {
       const photo = ctx.message.photo
@@ -181,18 +220,26 @@ export class RegisterController implements Controller {
       sceneSessionRegister.avatarTgFileId = photoSize['file_id']
 
       ctx.wizard.next()
-      if (typeof ctx.wizard.step === 'function') {
-        return ctx.wizard.step(ctx, next)
+
+      if (typeof ctx.wizard.step !== 'function') {
+        throw new Error(`context wizard step lost`)
       }
+
+      return ctx.wizard.step(ctx, next)
     }
   }
 
   private replyAvatarUnknownHandler: AppContextHandler = async (ctx) => {
-    await ctx.reply('Запости картинку!')
+    await ctx.replyWithMarkdownV2(
+      `Запости фотку`
+    )
   }
 
   private queryAboutHandler: AppContextHandler = async (ctx) => {
-    await ctx.reply('Расскажи о себе')
+    await ctx.replyWithMarkdownV2(
+      `Расскажи о себе`
+    )
+
     ctx.wizard.next()
   }
 
@@ -206,7 +253,11 @@ export class RegisterController implements Controller {
   }
 
   private replyAboutTextHandler: AppContextHandler = async (ctx, next) => {
-    const sceneSessionRegister = getSceneSessionRegister(ctx)
+    const sceneSessionRegister = ctx.scene.session.register
+
+    if (sceneSessionRegister === undefined) {
+      throw new Error(`context scene session register lost`)
+    }
 
     if (ctx.has(message('text'))) {
       const userAbout = ctx.message.text
@@ -215,53 +266,67 @@ export class RegisterController implements Controller {
         sceneSessionRegister.about = userAbout
 
         ctx.wizard.next()
-        if (typeof ctx.wizard.step === 'function') {
-          return ctx.wizard.step(ctx, next)
+
+        if (typeof ctx.wizard.step !== 'function') {
+          throw new Error(`context wizard step lost`)
         }
+
+        return ctx.wizard.step(ctx, next)
       } else {
-        await ctx.reply(`Неверный ввод, используй 3-300 символов`)
+        await ctx.replyWithMarkdownV2(
+          `Некорректный ввод, попробуй еще раз`
+        )
       }
     }
   }
 
   private replyAboutUnknownHandler: AppContextHandler = async (ctx) => {
-    await ctx.reply('Используй обычное текстовое сообщение!')
+    await ctx.replyWithMarkdownV2(
+      `Используй обычное текстовое сообщение`
+    )
   }
 
   private leaveSceneHandler: AppContextHandler = async (ctx) => {
-    const sessionUser = getSessionUser(ctx)
-    const sceneSessionRegister = getSceneSessionRegister(ctx)
+    const sessionUser = ctx.session.user
 
-    if (isSceneSessionRegister(sceneSessionRegister)) {
-      await this.postgresService.activateUser(
-        sessionUser.id,
-        sceneSessionRegister.nick,
-        sceneSessionRegister.gender,
-        sceneSessionRegister.avatarTgFileId,
-        sceneSessionRegister.about,
-        ctx.from
-      )
-
-      setSessionUser(ctx, sessionUser)
-
-      await ctx.reply(
-        `Регистрация окончена, спасибо!`,
-      )
-
-      await ctx.scene.leave()
-    } else {
-      throw new Error(`scene session register data lost`)
+    if (sessionUser === undefined) {
+      throw new Error(`context session user lost`)
     }
+
+    const sceneSessionRegister = ctx.scene.session.register
+
+    if (sceneSessionRegister === undefined) {
+      throw new Error(`context scene session register lost`)
+    }
+
+    if (!isSceneSessionRegister(sceneSessionRegister)) {
+      throw new Error(`scene session register data malformed`)
+    }
+
+    ctx.session.user = await this.postgresService.activateUser(
+      sessionUser.id,
+      sceneSessionRegister.nick,
+      sceneSessionRegister.gender,
+      sceneSessionRegister.avatarTgFileId,
+      sceneSessionRegister.about,
+      ctx.from
+    )
+
+    await ctx.replyWithMarkdownV2(
+      `Регистрация окончена, спасибо`
+    )
+
+    await ctx.scene.leave()
   }
 
   private exceptionHandler: AppContextExceptionHandler = async (error, ctx) => {
     if (error instanceof Error) {
       logger.error(`RegisterScene error: ${error.message}`)
       console.error(error.stack)
-      console.dir(ctx)
+      console.dir(ctx, { depth: 10 })
     }
 
-    await ctx.reply(
+    await ctx.replyWithMarkdownV2(
       `Произошла ошибка, выход в главное меню`
     )
 
