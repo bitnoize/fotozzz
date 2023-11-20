@@ -4,13 +4,7 @@ export type UserGender = (typeof USER_GENDERS)[number]
 export type UserStatus = (typeof USER_STATUSES)[number]
 export type UserRole = (typeof USER_ROLES)[number]
 
-export interface Navigation {
-  messageId: number | null
-  currentPage: number
-  totalPages: number
-}
-
-export interface SessionUser {
+export interface Authorize {
   id: number
   tgId: string
   nick: string | null
@@ -19,8 +13,17 @@ export interface SessionUser {
   role: UserRole
   registerTime: Date
   lastActivityTime: Date
-  isGroupMember: boolean
-  isChannelMember: boolean
+}
+
+export interface Membership {
+  checkGroup: boolean | null
+  checkChannel: boolean | null
+}
+
+export interface Navigation {
+  messageId: number | null
+  currentPage: number
+  totalPages: number
 }
 
 export interface User {

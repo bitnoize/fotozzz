@@ -1,14 +1,14 @@
 import {
   RowId,
   RowCount,
-  RowSessionUser,
+  RowAuthorize,
   RowUser,
   RowTopic,
   RowPhoto,
   RowRate,
   RowComment
 } from '../interfaces/postgres.js'
-import { SessionUser, User } from '../interfaces/user.js'
+import { Authorize, User } from '../interfaces/user.js'
 import { Topic } from '../interfaces/topic.js'
 import { Photo } from '../interfaces/photo.js'
 import { Rate } from '../interfaces/rate.js'
@@ -37,50 +37,48 @@ export const isRowCount = (
   )
 }
 
-export const isRowSessionUser = (
-  rowSessionUser: unknown
-): rowSessionUser is RowSessionUser => {
+export const isRowAuthorize = (
+  rowAuthorize: unknown
+): rowAuthorize is RowAuthorize => {
   return (
-    rowSessionUser != null &&
-    typeof rowSessionUser === 'object' &&
-    'id' in rowSessionUser &&
-    typeof rowSessionUser['id'] === 'number' &&
-    'tg_id' in rowSessionUser &&
-    typeof rowSessionUser['tg_id'] === 'string' &&
-    'nick' in rowSessionUser &&
-    (rowSessionUser['nick'] === null ||
-      typeof rowSessionUser['nick'] === 'string') &&
-    'gender' in rowSessionUser &&
-    (rowSessionUser['gender'] === null ||
-      typeof rowSessionUser['gender'] === 'string') &&
-    'status' in rowSessionUser &&
-    typeof rowSessionUser['status'] === 'string' &&
-    'role' in rowSessionUser &&
-    typeof rowSessionUser['role'] === 'string' &&
-    'register_time' in rowSessionUser &&
-    typeof rowSessionUser['register_time'] === 'object' &&
-    rowSessionUser['register_time'] instanceof Date &&
-    'last_activity_time' in rowSessionUser &&
-    typeof rowSessionUser['last_activity_time'] === 'object' &&
-    rowSessionUser['last_activity_time'] instanceof Date
+    rowAuthorize != null &&
+    typeof rowAuthorize === 'object' &&
+    'id' in rowAuthorize &&
+    typeof rowAuthorize['id'] === 'number' &&
+    'tg_id' in rowAuthorize &&
+    typeof rowAuthorize['tg_id'] === 'string' &&
+    'nick' in rowAuthorize &&
+    (rowAuthorize['nick'] === null ||
+      typeof rowAuthorize['nick'] === 'string') &&
+    'gender' in rowAuthorize &&
+    (rowAuthorize['gender'] === null ||
+      typeof rowAuthorize['gender'] === 'string') &&
+    'status' in rowAuthorize &&
+    typeof rowAuthorize['status'] === 'string' &&
+    'role' in rowAuthorize &&
+    typeof rowAuthorize['role'] === 'string' &&
+    'register_time' in rowAuthorize &&
+    typeof rowAuthorize['register_time'] === 'object' &&
+    rowAuthorize['register_time'] instanceof Date &&
+    'last_activity_time' in rowAuthorize &&
+    typeof rowAuthorize['last_activity_time'] === 'object' &&
+    rowAuthorize['last_activity_time'] instanceof Date
   )
 }
 
-export const buildSessionUser = (rowSessionUser: RowSessionUser): SessionUser => {
-  const sessionUser: SessionUser = {
-    id: rowSessionUser['id'],
-    tgId: rowSessionUser['tg_id'],
-    nick: rowSessionUser['nick'],
-    gender: rowSessionUser['gender'],
-    status: rowSessionUser['status'],
-    role: rowSessionUser['role'],
-    registerTime: rowSessionUser['register_time'],
-    lastActivityTime: rowSessionUser['last_activity_time'],
-    isGroupMember: false,
-    isChannelMember: false
+export const buildAuthorize = (rowAuthorize: RowAuthorize): Authorize => {
+  const authorize: Authorize = {
+    id: rowAuthorize['id'],
+    tgId: rowAuthorize['tg_id'],
+    nick: rowAuthorize['nick'],
+    gender: rowAuthorize['gender'],
+    status: rowAuthorize['status'],
+    role: rowAuthorize['role'],
+    registerTime: rowAuthorize['register_time'],
+    lastActivityTime: rowAuthorize['last_activity_time']
   }
 
-  return sessionUser
+  return authorize
 }
 
 export const isRowUser = (
@@ -203,10 +201,14 @@ export const isRowPhoto = (
     typeof rowPhoto['user_id'] === 'number' &&
     'topic_id' in rowPhoto &&
     typeof rowPhoto['topic_id'] === 'number' &&
-    'tg_id' in rowPhoto &&
-    typeof rowPhoto['tg_id'] === 'string' &&
+    'group_tg_id' in rowPhoto &&
+    typeof rowPhoto['group_tg_id'] === 'string' &&
+    'channel_tg_id' in rowPhoto &&
+    typeof rowPhoto['channel_tg_id'] === 'string' &&
     'tg_file_id' in rowPhoto &&
     typeof rowPhoto['tg_file_id'] === 'string' &&
+    'description' in rowPhoto &&
+    typeof rowPhoto['description'] === 'string' &&
     'status' in rowPhoto &&
     typeof rowPhoto['status'] === 'string' &&
     'create_time' in rowPhoto &&
@@ -220,8 +222,10 @@ export const buildPhoto = (rowPhoto: RowPhoto): Photo => {
     id: rowPhoto['id'],
     userId: rowPhoto['user_id'],
     topicId: rowPhoto['topic_id'],
-    tgId: rowPhoto['tg_id'],
+    groupTgId: rowPhoto['group_tg_id'],
+    channelTgId: rowPhoto['channel_tg_id'],
     tgFileId: rowPhoto['tg_file_id'],
+    description: rowPhoto['description'],
     status: rowPhoto['status'],
     createTime: rowPhoto['create_time']
   }

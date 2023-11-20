@@ -1,6 +1,6 @@
 import pg from 'pg'
 import { PostgresServiceOptions } from '../interfaces/postgres.js'
-import { SessionUser, User, UserGender } from '../interfaces/user.js'
+import { Authorize, User, UserGender } from '../interfaces/user.js'
 import { Topic } from '../interfaces/topic.js'
 import { Photo } from '../interfaces/photo.js'
 import { Rate } from '../interfaces/rate.js'
@@ -8,7 +8,7 @@ import { Comment } from '../interfaces/comment.js'
 import {
   isRowId,
   isRowCount,
-  isRowSessionUser,
+  isRowAuthorize,
   isRowUser,
   isRowTopic,
   isRowsTopics,
@@ -16,8 +16,10 @@ import {
   isRowsPhotos,
   isRowComment,
   isRowsComments,
-  buildSessionUser,
+  buildAuthorize,
   buildUser,
+  buildTopic,
+  buildTopics,
   buildPhoto,
   buildPhotos,
   buildComment,
@@ -59,16 +61,16 @@ export class PostgresService {
     return this._instance
   }
 
-  async authorizeUser(tgId: number, from: unknown): Promise<SessionUser> {
+  async authorizeUser(tgId: number, from: unknown): Promise<Authorize> {
     const client = await this.pool.connect()
 
     try {
       await client.query('BEGIN')
 
-      let sessionUser: SessionUser
+      let authorize: Authorize
 
       const resultSelectUserExists = await client.query(
-        this.selectSessionUserByTgIdForShareSql,
+        this.selectAuthorizeByTgIdForShareSql,
         [tgId]
       )
 
@@ -84,12 +86,12 @@ export class PostgresService {
         }
 
         const resultSelectUser = await client.query(
-          this.selectSessionUserByIdForShareSql,
+          this.selectAuthorizeByIdForShareSql,
           [rowInsertUser['id']]
         )
 
         const rowSelectUser = resultSelectUser.rows.shift()
-        if (!isRowSessionUser(rowSelectUser)) {
+        if (!isRowAuthorize(rowSelectUser)) {
           throw new Error(`select user malformed result`)
         }
 
@@ -105,20 +107,20 @@ export class PostgresService {
           ]
         )
 
-        sessionUser = buildSessionUser(rowSelectUser)
+        authorize = buildAuthorize(rowSelectUser)
       } else {
         const rowSelectUserExists =
           resultSelectUserExists.rows.shift()
-        if (!isRowSessionUser(rowSelectUserExists)) {
+        if (!isRowAuthorize(rowSelectUserExists)) {
           throw new Error(`selected user malformed result`)
         }
 
-        sessionUser = buildSessionUser(rowSelectUserExists)
+        authorize = buildAuthorize(rowSelectUserExists)
       }
 
       await client.query('COMMIT')
 
-      return sessionUser
+      return authorize
     } catch (error: unknown) {
       await client.query('ROLLBACK')
 
@@ -152,14 +154,14 @@ export class PostgresService {
     avatarTgFileId: string,
     about: string,
     from: unknown
-  ): Promise<SessionUser> {
+  ): Promise<Authorize> {
     const client = await this.pool.connect()
 
     try {
       await client.query('BEGIN')
 
       const resultSelectUserExists = await client.query(
-        this.selectSessionUserByIdForUpdateSql,
+        this.selectAuthorizeByIdForUpdateSql,
         [id]
       )
 
@@ -168,7 +170,7 @@ export class PostgresService {
       }
 
       const rowSelectUserExists = resultSelectUserExists.rows.shift()
-      if (!isRowSessionUser(rowSelectUserExists)) {
+      if (!isRowAuthorize(rowSelectUserExists)) {
         throw new Error(`select user malformed result`)
       }
 
@@ -203,12 +205,12 @@ export class PostgresService {
       }
 
       const resultSelectUpdated = await client.query(
-        this.selectSessionUserByIdForShareSql,
+        this.selectAuthorizeByIdForShareSql,
         [rowUpdateUser['id']]
       )
 
       const rowSelectUser = resultSelectUpdated.rows.shift()
-      if (!isRowSessionUser(rowSelectUser)) {
+      if (!isRowAuthorize(rowSelectUser)) {
         throw new Error(`select user malformed result`)
       }
 
@@ -224,11 +226,11 @@ export class PostgresService {
         ]
       )
 
-      const sessionUser = buildSessionUser(rowSelectUser)
+      const authorize = buildAuthorize(rowSelectUser)
 
       await client.query('COMMIT')
 
-      return sessionUser
+      return authorize
     } catch (error) {
       await client.query('ROLLBACK')
 
@@ -296,11 +298,57 @@ export class PostgresService {
     }
   }
 
+  async getTopic(id: number): Promise<Topic[]> {
+    const client = await this.pool.connect()
+
+    try {
+      const resultSelectTopic = await client.query(
+        this.selectTopicSql
+      )
+
+      const rowsSelectTopic = resultSelectTopic.rows
+      if (!isRowsTopic(rowsSelectTopic)) {
+        throw new Error(`select topic malformed result`)
+      }
+
+      const topic = buildTopic(rowsSelectTopic)
+
+      return topic
+    } catch (error) {
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  async getTopics(): Promise<Topic[]> {
+    const client = await this.pool.connect()
+
+    try {
+      const resultSelectTopics = await client.query(
+        this.selectTopicsSql
+      )
+
+      const rowsSelectTopics = resultSelectTopics.rows
+      if (!isRowsTopics(rowsSelectTopics)) {
+        throw new Error(`select topics malformed result`)
+      }
+
+      const topics = buildTopics(rowsSelectTopics)
+
+      return topics
+    } catch (error) {
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
   async newPhoto(
     userId: number,
     topicId: number,
-    tgId: number,
     tgFileId: string,
+    description: string
     from: unknown
   ): Promise<Photo> {
     const client = await this.pool.connect()
@@ -309,7 +357,7 @@ export class PostgresService {
       await client.query('BEGIN')
 
       const resultSelectUser = await client.query(
-        this.selectSessionUserByIdForShareSql,
+        this.selectAuthorizeByIdForShareSql,
         [userId]
       )
 
@@ -318,7 +366,7 @@ export class PostgresService {
       }
 
       const rowSelectUser = resultSelectUser.rows.shift()
-      if (!isRowSessionUser(rowSelectUser)) {
+      if (!isRowAuthorize(rowSelectUser)) {
         throw new Error(`select user malformed result`)
       }
 
@@ -349,8 +397,8 @@ export class PostgresService {
         [
           rowSelectUser['id'],
           rowSelectTopic['id'],
-          tgId,
           tgFileId,
+          description,
           { from }
         ]
       )
@@ -400,7 +448,7 @@ export class PostgresService {
 
     try {
       const resultSelectUser = await client.query(
-        this.selectSessionUserByIdForShareSql,
+        this.selectAuthorizeByIdForShareSql,
         [userId]
       )
 
@@ -409,7 +457,7 @@ export class PostgresService {
       }
 
       const rowSelectUser = resultSelectUser.rows.shift()
-      if (!isRowSessionUser(rowSelectUser)) {
+      if (!isRowAuthorize(rowSelectUser)) {
         throw new Error(`select user malformed result`)
       }
 
@@ -451,7 +499,7 @@ export class PostgresService {
       await client.query('BEGIN')
 
       const resultSelectUser = await client.query(
-        this.selectSessionUserByIdForShareSql,
+        this.selectAuthorizeByIdForShareSql,
         [userId]
       )
 
@@ -460,7 +508,7 @@ export class PostgresService {
       }
 
       const rowSelectUser = resultSelectUser.rows.shift()
-      if (!isRowSessionUser(rowSelectUser)) {
+      if (!isRowAuthorize(rowSelectUser)) {
         throw new Error(`select user malformed result`)
       }
 
@@ -567,7 +615,7 @@ export class PostgresService {
 
     try {
       const resultSelectUser = await client.query(
-        this.selectSessionUserByIdForShareSql,
+        this.selectAuthorizeByIdForShareSql,
         [userId]
       )
 
@@ -576,7 +624,7 @@ export class PostgresService {
       }
 
       const rowSelectUser = resultSelectUser.rows.shift()
-      if (!isRowSessionUser(rowSelectUser)) {
+      if (!isRowAuthorize(rowSelectUser)) {
         throw new Error(`select user malformed result`)
       }
 
@@ -604,7 +652,7 @@ export class PostgresService {
     }
   }
 
-  private readonly selectSessionUserByIdForShareSql = `
+  private readonly selectAuthorizeByIdForShareSql = `
 SELECT
   id, tg_id, nick, gender, status, role, register_time, last_activity_time
 FROM users
@@ -612,7 +660,7 @@ WHERE id = $1
 FOR SHARE
 `
 
-  private readonly selectSessionUserByIdForUpdateSql = `
+  private readonly selectAuthorizeByIdForUpdateSql = `
 SELECT
   id, tg_id, nick, gender, status, role, register_time, last_activity_time
 FROM users
@@ -620,7 +668,7 @@ WHERE id = $1
 FOR UPDATE
 `
 
-  private readonly selectSessionUserByTgIdForShareSql = `
+  private readonly selectAuthorizeByTgIdForShareSql = `
 SELECT
   id, tg_id, nick, gender, status, role, register_time, last_activity_time
 FROM users
@@ -673,7 +721,7 @@ VALUES ($1, $2, $3, $4, $5, $6)
 
   private readonly selectTopicByIdForShareSql = `
 SELECT
-  id, ...
+  id, tg_id, name, status, description, create_time
 FROM topics
 WHERE id = $1
 FOR SHARE
@@ -681,10 +729,18 @@ FOR SHARE
 
   private readonly selectTopicByIdForUpdateSql = `
 SELECT
-  id, ...
+  id, tg_id, name, status, description, create_time
 FROM topics
 WHERE id = $1
 FOR UPDATE
+`
+
+  private readonly selectTopicsSql = `
+SELECT
+  id, tg_id, name, status, description, create_time
+FROM topics
+WHERE id = $1
+ORDER BY id ASC
 `
 
   private readonly insertTopicSql = `
@@ -702,7 +758,8 @@ VALUES ($1, $2, $3, $4, $5)
 
   private readonly selectPhotoByIdForShareSql = `
 SELECT
-  id, user_id, topic_id, tg_id, tg_file_id, status, create_time
+  id, user_id, topic_id, group_tg_id, channel_tg_id, tg_file_id,
+  description, status, create_time
 FROM photos
 WHERE id = $1
 FOR SHARE
@@ -710,7 +767,8 @@ FOR SHARE
 
   private readonly selectPhotoByIdForUpdateSql = `
 SELECT
-  id, user_id, topic_id, tg_id, tg_file_id, status, create_time
+  id, user_id, topic_id, group_tg_id, channel_tg_id, tg_file_id,
+  description, status, create_time
 FROM photos
 WHERE id = $1
 FOR UPDATE
@@ -718,7 +776,8 @@ FOR UPDATE
 
   private readonly selectPhotosByUserIdSql = `
 SELECT
-  id, user_id, topic_id, tg_id, tg_file_id, status, create_time
+  id, user_id, topic_id, group_tg_id, channel_tg_id, tg_file_id,
+  description, status, create_time
 FROM photos
 WHERE user_id = $1 AND status = $2
 ORDER BY create_time DESC
@@ -733,8 +792,8 @@ WHERE user_id = $1 AND status = $2
 
   private readonly insertPhotoSql = `
 INSERT INTO photos
-  (user_id, topic_id, tg_id, tg_file_id, status)
-VALUES ($1, $2, $3, $4, $5)
+  (user_id, topic_id, group_tg_id, channel_tg_id, tg_file_id, description, status)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING id
 `
 

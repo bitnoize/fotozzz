@@ -1,5 +1,6 @@
 import { Context, Scenes } from 'telegraf'
-import { SessionUser, Navigation, Register } from './user.js'
+import { Authorize, Membership, Navigation, Register } from './user.js'
+import { NewPhoto } from './photo.js'
 
 export interface AppOptions {
   botToken: string
@@ -18,11 +19,13 @@ export interface Controller {
 
 export interface AppWizardSession extends Scenes.WizardSessionData {
   register?: Partial<Register>
+  newPhoto?: Partial<NewPhoto>
 }
 
 export interface AppSession extends Scenes.WizardSession<AppWizardSession> {
-  user?: SessionUser
+  authorize?: Authorize
   navigation?: Navigation
+  membership?: Membership
 }
 
 export interface AppContext extends Context {
@@ -42,7 +45,8 @@ export type AppContextExceptionHandler = (
   ctx: AppContext,
 ) => Promise<unknown | void>
 
-export type CheckSessionUserHandler = (
-  sessionUser: SessionUser,
+export type RouteMainMenuHandler = (
+  authorize: Authorize,
+  membership: Membership,
   navigation: Navigation
 ) => Promise<void>

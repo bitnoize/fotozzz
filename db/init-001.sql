@@ -123,8 +123,10 @@ CREATE TABLE photos (
   id                  INTEGER GENERATED ALWAYS AS IDENTITY,
   user_id             INTEGER NOT NULL,
   topic_id            SMALLINT NOT NULL,
-  tg_id               BIGINT NOT NULL,
+  group_tg_id         BIGINT NOT NULL,
+  channel_tg_id       BIGINT NOT NULL,
   tg_file_id          VARCHAR(100) NOT NULL,
+  description         TEXT,
   status              photo_status NOT NULL,
   create_time         TIMESTAMPTZ DEFAULT NOW(),
 

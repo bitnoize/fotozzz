@@ -13,7 +13,7 @@ import {
   isUserGender,
   isUserNick,
   isUserAbout,
-  isSceneSessionRegister,
+  isRegister,
   markupKeyboardGender
 } from '../helpers/telegram.js'
 import { USER_GENDERS } from '../constants/user.js'
@@ -44,15 +44,23 @@ export class RegisterController implements Controller {
   }
 
   private enterSceneHandler: AppContextHandler = async (ctx, next) => {
-    const sessionUser = ctx.session.user
-
-    if (sessionUser === undefined) {
-      throw new Error(`context session user lost`)
+    const authorize = ctx.session.authorize
+    if (authorize === undefined) {
+      throw new Error(`context session authorize lost`)
     }
 
-    if (sessionUser.status !== 'register') {
-      throw new Error(`user status not allowed to enter scene`)
+    const navigation = ctx.session.navigation
+    if (navigation === undefined) {
+      throw new Error(`context session navigation lost`)
     }
+
+    if (authorize.status !== 'register') {
+      throw new Error(`authorize status not allowed to enter scene`)
+    }
+
+    navigation.messageId = null
+    navigation.currentPage = 0
+    navigation.totalPages = 0
 
     ctx.scene.session.register = {}
 
@@ -87,9 +95,8 @@ export class RegisterController implements Controller {
   }
 
   private replyNickTextHandler: AppContextHandler = async (ctx, next) => {
-    const sceneSessionRegister = ctx.scene.session.register
-
-    if (sceneSessionRegister === undefined) {
+    const register = ctx.scene.session.register
+    if (register === undefined) {
       throw new Error(`context scene session register lost`)
     }
 
@@ -100,7 +107,7 @@ export class RegisterController implements Controller {
         const isSuccess = await this.postgresService.checkUserNick(userNick)
 
         if (isSuccess) {
-          sceneSessionRegister.nick = userNick
+          register.nick = userNick
 
           ctx.wizard.next()
 
@@ -147,16 +154,15 @@ export class RegisterController implements Controller {
   }
 
   private replyGenderActionHandler: AppContextHandler = async (ctx, next) => {
-    const sceneSessionRegister = ctx.scene.session.register
-
-    if (sceneSessionRegister === undefined) {
+    const register = ctx.scene.session.register
+    if (register === undefined) {
       throw new Error(`context scene session register lost`)
     }
 
     const userGender = ctx.match.input
 
     if (isUserGender(userGender)) {
-      sceneSessionRegister.gender = userGender
+      register.gender = userGender
 
       ctx.wizard.next()
 
@@ -196,9 +202,8 @@ export class RegisterController implements Controller {
   }
 
   private replyAvatarPhotoHandler: AppContextHandler = async (ctx, next) => {
-    const sceneSessionRegister = ctx.scene.session.register
-
-    if (sceneSessionRegister === undefined) {
+    const register = ctx.scene.session.register
+    if (register === undefined) {
       throw new Error(`context scene session register lost`)
     }
 
@@ -217,7 +222,7 @@ export class RegisterController implements Controller {
         throw new Error(`response photoSize malformed`)
       }
 
-      sceneSessionRegister.avatarTgFileId = photoSize['file_id']
+      register.avatarTgFileId = photoSize['file_id']
 
       ctx.wizard.next()
 
@@ -253,9 +258,8 @@ export class RegisterController implements Controller {
   }
 
   private replyAboutTextHandler: AppContextHandler = async (ctx, next) => {
-    const sceneSessionRegister = ctx.scene.session.register
-
-    if (sceneSessionRegister === undefined) {
+    const register = ctx.scene.session.register
+    if (register === undefined) {
       throw new Error(`context scene session register lost`)
     }
 
@@ -263,7 +267,7 @@ export class RegisterController implements Controller {
       const userAbout = ctx.message.text
 
       if (isUserAbout(userAbout)) {
-        sceneSessionRegister.about = userAbout
+        register.about = userAbout
 
         ctx.wizard.next()
 
@@ -287,28 +291,40 @@ export class RegisterController implements Controller {
   }
 
   private leaveSceneHandler: AppContextHandler = async (ctx) => {
-    const sessionUser = ctx.session.user
-
-    if (sessionUser === undefined) {
-      throw new Error(`context session user lost`)
+    const authorize = ctx.session.authorize
+    if (authorize === undefined) {
+      throw new Error(`context session authorize lost`)
     }
 
-    const sceneSessionRegister = ctx.scene.session.register
+    const navigation = ctx.session.navigation
+    if (navigation === undefined) {
+      throw new Error(`context session navigation lost`)
+    }
 
-    if (sceneSessionRegister === undefined) {
+    if (navigation.messageId !== null) {
+      await ctx.deleteMessage(navigation.messageId)
+
+      navigation.messageId = null
+    }
+
+    navigation.currentPage = 0
+    navigation.totalPages = 0
+
+    const register = ctx.scene.session.register
+    if (register === undefined) {
       throw new Error(`context scene session register lost`)
     }
 
-    if (!isSceneSessionRegister(sceneSessionRegister)) {
+    if (!isRegister(register)) {
       throw new Error(`scene session register data malformed`)
     }
 
-    ctx.session.user = await this.postgresService.activateUser(
-      sessionUser.id,
-      sceneSessionRegister.nick,
-      sceneSessionRegister.gender,
-      sceneSessionRegister.avatarTgFileId,
-      sceneSessionRegister.about,
+    ctx.session.authorize = await this.postgresService.activateUser(
+      authorize.id,
+      register.nick,
+      register.gender,
+      register.avatarTgFileId,
+      register.about,
       ctx.from
     )
 
@@ -323,7 +339,7 @@ export class RegisterController implements Controller {
     if (error instanceof Error) {
       logger.error(`RegisterScene error: ${error.message}`)
       console.error(error.stack)
-      console.dir(ctx, { depth: 10 })
+      console.dir(ctx, { depth: 4 })
     }
 
     await ctx.replyWithMarkdownV2(

@@ -16,7 +16,7 @@ export interface RowCount {
   count: number
 }
 
-export interface RowSessionUser {
+export interface RowAuthorize {
   id: number
   tg_id: string
   nick: string | null

@@ -1,53 +1,9 @@
 import { Markup } from 'telegraf'
 import { ReplyKeyboardMarkup, User } from 'telegraf/types'
 import { AppContext, AppWizardSession } from '../interfaces/app.js'
-import { SessionUser, UserGender, Register } from '../interfaces/user.js'
+import { UserGender, Register } from '../interfaces/user.js'
 import { USER_NICK_REGEXP, USER_GENDERS } from '../constants/user.js'
 import { GENDER_EMOJIS, GENDER_EMOJI_UNKNOWN } from '../constants/misc.js'
-
-export const getFrom = (ctx: AppContext): User => {
-  const from = ctx.from
-  if (from === undefined || from['id'] == null) {
-    throw new Error(`context from lost`)
-  }
-
-  return from
-}
-
-export const getChat = (ctx: AppContext) => {
-  const chat = ctx.chat
-  if (chat === undefined || chat['id'] == null) {
-    throw new Error(`context chat lost`)
-  }
-
-  return chat
-}
-
-export const getSessionUser = (ctx: AppContext): SessionUser => {
-  const sessionUser = ctx.session.user
-  if (sessionUser === undefined) {
-    throw new Error(`context session user lost`)
-  }
-
-  return sessionUser
-}
-
-export const setSessionUser = (ctx: AppContext, sessionUser: SessionUser) => {
-  ctx.session.user = sessionUser
-}
-
-export const getSceneSessionRegister = (ctx: AppContext): Partial<Register> => {
-  const sceneSessionRegister = ctx.scene.session.register
-  if (sceneSessionRegister === undefined) {
-    throw new Error(`context scene session register lost`)
-  }
-
-  return sceneSessionRegister
-}
-
-export const newSceneSessionRegister = (ctx: AppContext) => {
-  ctx.scene.session.register = {}
-}
 
 export const getEmojiGender = (gender: UserGender | null): string => {
   let genderEmoji: string | undefined
@@ -92,26 +48,44 @@ export const isUserAbout = (userAbout: unknown): userAbout is string => {
   )
 }
 
-export const isSceneSessionRegister = (
-  sceneSessionRegister: Partial<Register>
-): sceneSessionRegister is Register => {
+export const isRegister = (
+  register: Partial<Register>
+): register is Register => {
   return (
-    sceneSessionRegister.nick !== undefined &&
-    sceneSessionRegister.gender !== undefined &&
-    sceneSessionRegister.avatarTgFileId !== undefined &&
-    sceneSessionRegister.about !== undefined
+    register.nick !== undefined &&
+    register.gender !== undefined &&
+    register.avatarTgFileId !== undefined &&
+    register.about !== undefined
+  )
+}
+
+export const isNewPhoto = (
+  newPhoto: Partial<NewPhoto>
+): newPhoto is NewPhoto => {
+  return (
+    newPhoto.tgFileId !== undefined &&
+    newPhoto.topicId !== undefined &&
+    newPhoto.description !== undefined
   )
 }
 
 export const markupKeyboardCheckGroup = () => {
   return Markup.inlineKeyboard([
-    Markup.button.callback('Я уже подписан на группу', 'check-membership'),
+    Markup.button.callback(`Я уже подписан на группу`, 'main-start'),
   ])
 }
 
 export const markupKeyboardCheckChannel = () => {
   return Markup.inlineKeyboard([
-    Markup.button.callback('Я уже подписан на канал', 'check-membership'),
+    Markup.button.callback(`Я уже подписан на канал`, 'main-start'),
+  ])
+}
+
+export const markupKeyboardMain = () => {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('Профиль', 'main-profile')],
+    [Markup.button.callback('Фото', 'main-photo')],
+    [Markup.button.callback('Поиск', 'main-search')],
   ])
 }
 
@@ -133,9 +107,16 @@ export const markupKeyboardProfile = () => {
 
 export const markupKeyboardPhoto = () => {
   return Markup.inlineKeyboard([
-    Markup.button.callback('Предыдущее', 'photo-prev'),
-    Markup.button.callback('Просмотр', 'photo-view'),
-    Markup.button.callback('Следующее', 'photo-next'),
-    Markup.button.callback('Удалить', 'photo-delete'),
+    [
+      Markup.button.callback('Предыдущее', 'photo-prev'),
+      Markup.button.callback('Просмотр', 'photo-view')
+      Markup.button.callback('Следующее', 'photo-next'),
+    ],
+    [
+      Markup.button.callback('Удалить', 'photo-delete')
+    ],
+    [
+      Markup.button.callback('В главное меню', 'return-menu')
+    ]
   ])
 }

@@ -10,11 +10,10 @@ import {
 import { RedisService } from '../services/redis.js'
 import { PostgresService } from '../services/postgres.js'
 import {
-  getSessionUser,
-  getEmojiGender,
   isUserGender,
   isUserNick,
   isUserAbout,
+  getEmojiGender,
   markupKeyboardProfile
 } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
@@ -29,20 +28,29 @@ export class ProfileController implements Controller {
     this.scene = new Scenes.BaseScene<AppContext>('profile')
 
     this.scene.enter(this.enterSceneHandler)
-    this.scene.leave(this.leaveSceneHandler)
 
     this.scene.action('edit-avatar', this.editAvatarHandler)
     this.scene.action('edit-about', this.editAboutHandler)
     this.scene.action('return-menu', this.returnMenuHandler)
+
+    this.scene.leave(this.leaveSceneHandler)
 
     this.scene.use(this.unknownHandler)
     this.scene.use(Scenes.BaseScene.catch(this.exceptionHandler))
   }
 
   private enterSceneHandler = async (ctx: AppContext): Promise<void> => {
-    const sessionUser = getSessionUser(ctx)
+    const authorize = ctx.session.authorize
+    if (authorize === undefined) {
+      throw new Error(`context session authorize lost`)
+    }
 
-    const user = await this.postgresService.getUser(sessionUser.id)
+    const navigation = ctx.session.navigation
+    if (navigation === undefined) {
+      throw new Error(`context session navigation lost`)
+    }
+
+    const user = await this.postgresService.getUser(authorize.id)
 
     const emojiGender = getEmojiGender(user.gender)
     const extra = markupKeyboardProfile()
@@ -51,67 +59,67 @@ export class ProfileController implements Controller {
       `${emojiGender} ${user.nick}\n` +
       `О себе: ${user.about}`
 
-    if (user.avatarTgFileId === undefined) {
-      throw new Error(`user ${user.id} avatarTgFileId undefined`)
-    } else {
-      await ctx.sendPhoto(user.avatarTgFileId, extra)
-    }
-  }
+    const message = await ctx.sendPhoto(user.avatarTgFileId, extra)
 
-  private leaveSceneHandler = async (ctx: AppContext): Promise<void> => {
-    await ctx.reply(
-      `Ты в главном меню`,
-      Markup.removeKeyboard()
-    )
+    navigation.messageId = message.message_id
+    navigation.currentPage = 0
+    navigation.totalPages = 0
   }
 
   private editAvatarHandler = async (ctx: AppContext): Promise<void> => {
-    await ctx.deleteMessage()
-
     await ctx.scene.leave()
     await ctx.scene.enter('profile-avatar')
   }
 
   private editAboutHandler = async (ctx: AppContext): Promise<void> => {
-    await ctx.deleteMessage()
-
     await ctx.scene.leave()
     await ctx.scene.enter('profile-about')
   }
 
   private returnMenuHandler = async (ctx: AppContext): Promise<void> => {
-    await ctx.deleteMessage()
-
     await ctx.scene.leave()
+
+    await ctx.replyWithMarkdownV2(
+      `Возврат в главное меню`
+    )
+  }
+
+  private leaveSceneHandler = async (ctx: AppContext): Promise<void> => {
+    const authorize = ctx.session.authorize
+    if (authorize === undefined) {
+      throw new Error(`context session authorize lost`)
+    }
+
+    const navigation = ctx.session.navigation
+    if (navigation === undefined) {
+      throw new Error(`context session navigation lost`)
+    }
+
+    if (navigation.messageId !== null) {
+      await ctx.deleteMessage(navigation.messageId)
+
+      navigation.messageId = null
+    }
+
+    navigation.currentPage = 0
+    navigation.totalPages = 0
   }
 
   private unknownHandler = async (ctx: AppContext): Promise<void> => {
-    await ctx.reply(
-      `Неизвестная команда, испольуй кнопки в сообщении`
-    )
+    logger.debug(`ProfileScene: ignore message`)
   }
 
   private exceptionHandler: AppContextExceptionHandler = async (error, ctx) => {
     if (error instanceof Error) {
       logger.error(`ProfileScene error: ${error.message}`)
       console.error(error.stack)
-      console.dir(ctx)
+      console.dir(ctx, { depth: 4 })
     }
 
-    await ctx.reply(
+    await ctx.replyWithMarkdownV2(
       `Произошла ошибка, выход в главное меню`
     )
 
     await ctx.scene.leave()
   }
 }
-
-
-/*
-
-    this.scene.hears('Показать профиль', this.showProfileHandler)
-    this.scene.hears('В главное меню', this.leaveSceneHandler)
-
-
-
-*/

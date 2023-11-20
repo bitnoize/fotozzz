@@ -8,18 +8,20 @@ import {
   AppContext,
   AppSession,
   AppContextHandler,
-  CheckSessionUserHandler
+  RouteMainMenuHandler
 } from './interfaces/app.js'
 import { RedisService } from './services/redis.js'
 import { PostgresService } from './services/postgres.js'
 import { RegisterController } from './controllers/register.js'
 import { ProfileController } from './controllers/profile.js'
-//import { PhotoController } from './controllers/photo.js'
-//import { SearchController } from './controllers/photo.js'
+import { PhotoController } from './controllers/photo.js'
+import { NewPhotoController } from './controllers/new-photo.js'
+import { Membership } from './interfaces/user.js'
 import {
   getEmojiGender,
   markupKeyboardCheckGroup,
-  markupKeyboardCheckChannel
+  markupKeyboardCheckChannel,
+  markupKeyboardMain,
 } from './helpers/telegram.js'
 import { logger } from './logger.js'
 
@@ -60,8 +62,8 @@ export class App {
 
     controllers.push(new RegisterController(this.options))
     controllers.push(new ProfileController(this.options))
-    //controllers.push(new PhotoController(this.options))
-    //controllers.push(new SearchController(this.options))
+    controllers.push(new PhotoController(this.options))
+    controllers.push(new NewPhotoController(this.options))
 
     const stage = new Scenes.Stage<AppContext>(
       controllers.map((controller) => controller.scene)
@@ -71,23 +73,19 @@ export class App {
 
     this.bot.use(this.authorizeHandler)
     this.bot.use(this.membershipHandler)
+    this.bot.use(this.navigationHandler)
 
     this.bot.command('start', this.startCommandHandler)
     this.bot.command('profile', this.profileCommandHandler)
-    //this.bot.command('photo', this.photoCommandHandler)
-    //this.bot.command('search', this.searchCommandHandler)
+    this.bot.command('photo', this.photoCommandHandler)
 
-    this.bot.action('check-membership', this.startCommandHandler)
+    this.bot.action('main-start', this.startCommandHandler)
+    this.bot.action('main-profile', this.profileCommandHandler)
 
     this.bot.on('chat_join_request', this.chatJoinRequestHandler)
 
-    this.bot.on(
-      [
-        'new_chat_member',
-        'left_chat_member'
-      ],
-      this.changeChatMemberHandler
-    )
+    this.bot.on('new_chat_member', this.changeChatMemberHandler)
+    this.bot.on('left_chat_member', this.changeChatMemberHandler)
 
     this.bot.use(this.unknownHandler)
     this.bot.catch(this.exceptionHandler)
@@ -107,31 +105,23 @@ export class App {
       const { id: fromId, is_bot: fromIsBot } = ctx.from
 
       if (!fromIsBot) {
-        const sessionUser = await this.postgresService.authorizeUser(
-          fromId,
-          ctx.from
-        )
+        const authorize = await this.postgresService.authorizeUser(fromId, ctx.from)
 
-        if (sessionUser.status !== 'banned') {
-          ctx.session.user = sessionUser
+        if (authorize.status !== 'banned') {
+          ctx.session.authorize = authorize
 
-          if (ctx.session.navigation === undefined) {
-            ctx.session.navigation = {
-              messageId: null,
-              currentPage: 0,
-              totalPages: 0
-            }
-          }
+          logger.debug(`Authorize: initialize context session`)
+          console.dir(authorize, { depth: 2 })
 
           await next()
         } else {
-          logger.info(`Bot authorize: ignore banned user ${sessionUser.id}`)
+          logger.info(`Authorize: ignore banned user ${authorize.id}`)
         }
       } else {
-        logger.info(`Bot authorize: ignore bot ${fromId}`)
+        logger.info(`Authorize: ignore bot ${fromId}`)
       }
     } else {
-      logger.warn(`Bot authorize: skip unknown source`)
+      logger.warn(`Authorize: ignore unknown source`)
       console.dir(ctx, { depth: 4 })
     }
   }
@@ -139,86 +129,91 @@ export class App {
   private membershipHandler: AppContextHandler = async (ctx, next) => {
     const { groupChatId, channelChatId } = this.options
 
-    if (
-      ctx.from !== undefined &&
-      ctx.chat !== undefined &&
-      ctx.session.user !== undefined
-    ) {
-      const { id: fromId } = ctx.from
-      const { id: chatId, type: chatType } = ctx.chat
+    const membership: Membership = {
+      checkGroup: null,
+      checkChannel: null
+    }
 
-      const sessionUser = ctx.session.user
+    if (ctx.from !== undefined && ctx.chat !== undefined) {
+      const { id: fromId } = ctx.from
+      const { type: chatType } = ctx.chat
 
       if (chatType === 'private') {
-        const allowedStatuses = [
-          'creator',
-          'administrator',
-          'member'
-        ]
+        const allowedStatuses = ['creator', 'administrator', 'member']
 
-        const groupMember = await ctx.telegram.getChatMember(
-          groupChatId,
-          fromId
-        )
+        const groupMember = await ctx.telegram.getChatMember(groupChatId, fromId)
 
-        if (allowedStatuses.includes(groupMember.status)) {
-          sessionUser.isGroupMember = true
-        }
+        membership.checkGroup = allowedStatuses.includes(groupMember.status)
 
-        const channelMember = await ctx.telegram.getChatMember(
-          channelChatId,
-          fromId
-        )
+        const channelMember = await ctx.telegram.getChatMember(channelChatId, fromId)
 
-        if (allowedStatuses.includes(channelMember.status)) {
-          sessionUser.isChannelMember = true
-        }
-
-        await next()
-      } else {
-        logger.info(`Bot membership: skip ${chatType} chatType`)
-
-        await next()
+        membership.checkChannel = allowedStatuses.includes(channelMember.status)
       }
-    } else {
-      logger.info(`Bot membership: skip unknown source`)
-
-      await next()
     }
+
+    ctx.session.membership = membership
+
+    logger.debug(`Membership: initialize context session`)
+    console.dir(membership, { depth: 2 })
+
+    await next()
+  }
+
+  private navigationHandler: AppContextHandler = async (ctx, next) => {
+    const navigation = ctx.session.navigation ??= {
+      messageId: null,
+      currentPage: 0,
+      totalPages: 0
+    }
+
+    logger.debug(`Navigation: initialize context session`)
+    console.dir(navigation, { depth: 2 })
+
+    await next()
   }
 
   private startCommandHandler: AppContextHandler = async (ctx) => {
-    await this.checkSessionUser(ctx, async (sessionUser, navigation) => {
-      const emojiGender = getEmojiGender(sessionUser.gender)
+    const handler: RouteMainMenuHandler = async (
+      authorize,
+      membership,
+      navigation
+    ) => {
+      const emojiGender = getEmojiGender(authorize.gender)
 
       const message = await ctx.replyWithMarkdownV2(
-        `Бот приветствует тебя, ${emojiGender} *${sessionUser.nick}*\n` +
-        `Описание сервиса`
+        `Бот приветствует тебя, ${emojiGender} *${authorize.nick}*\n` +
+        `Описание сервиса`,
+        markupKeyboardMain()
       )
 
       navigation.messageId = message.message_id
-    })
+    }
+
+    await this.routeMainMenu(ctx, handler)
   }
 
   private profileCommandHandler: AppContextHandler = async (ctx) => {
-    await this.checkSessionUser(ctx, async (sessionUser) => {
+    const commandHandler: RouteMainMenuHandler = async () => {
       await ctx.scene.enter('profile')
-    })
+    }
+
+    await this.routeMainMenu(ctx, commandHandler)
   }
 
   private photoCommandHandler: AppContextHandler = async (ctx) => {
-    await this.checkSessionUser(ctx, async (sessionUser) => {
-      await ctx.scene.enter('profile')
-    })
+    const commandHandler: RouteMainMenuHandler = async () => {
+      await ctx.scene.enter('photo')
+    }
+
+    await this.routeMainMenu(ctx, commandHandler)
   }
 
   private chatJoinRequestHandler: AppContextHandler = async (ctx) => {
     const { groupChatId, channelChatId } = this.options
 
-    const sessionUser = ctx.session.user
-
-    if (sessionUser === undefined) {
-      throw new Error(`context session user lost`)
+    const authorize = ctx.session.authorize
+    if (authorize === undefined) {
+      throw new Error(`context session authorize lost`)
     }
 
     if (ctx.chatJoinRequest !== undefined) {
@@ -246,19 +241,23 @@ export class App {
     }
   }
 
-  private checkSessionUser = async (
+  private routeMainMenu = async (
     ctx: AppContext,
-    handler: CheckSessionUserHandler
+    handler: RouteMainMenuHandler
   ): Promise<void> => {
     const { groupUrl, channelUrl } = this.options
 
-    const sessionUser = ctx.session.user
-    const navigation = ctx.session.navigation
-
-    if (sessionUser === undefined) {
-      throw new Error(`context session user lost`)
+    const authorize = ctx.session.authorize
+    if (authorize === undefined) {
+      throw new Error(`context session authorize lost`)
     }
 
+    const membership = ctx.session.membership
+    if (membership === undefined) {
+      throw new Error(`context session membership lost`)
+    }
+
+    const navigation = ctx.session.navigation
     if (navigation === undefined) {
       throw new Error(`context session navigation lost`)
     }
@@ -269,17 +268,20 @@ export class App {
       navigation.messageId = null
     }
 
-    if (sessionUser.status === 'register') {
+    navigation.currentPage = 0
+    navigation.totalPages = 0
+
+    if (authorize.status === 'register') {
       await ctx.scene.enter('register')
     } else {
-      if (!sessionUser.isGroupMember) {
+      if (!membership.checkGroup) {
         const message = await ctx.replyWithMarkdownV2(
           `Подпишись на [группу](${groupUrl})`,
           markupKeyboardCheckGroup()
         )
 
         navigation.messageId = message.message_id
-      } else if (!sessionUser.isChannelMember) {
+      } else if (!membership.checkChannel) {
         const message = await ctx.replyWithMarkdownV2(
           `Подпишись на [канал](${channelUrl})`,
           markupKeyboardCheckChannel()
@@ -287,7 +289,7 @@ export class App {
 
         navigation.messageId = message.message_id
       } else {
-        await handler(sessionUser)
+        await handler(authorize, membership, navigation)
       }
     }
   }
