@@ -6,44 +6,28 @@ export type UserRole = (typeof USER_ROLES)[number]
 
 export interface Authorize {
   id: number
-  tgId: string
-  nick: string | null
+  tgFromId: string
+  nick: string
   gender: UserGender | null
+  emojiGender: string
   status: UserStatus
   role: UserRole
   registerTime: Date
   lastActivityTime: Date
-}
-
-export interface Membership {
-  checkGroup: boolean | null
-  checkChannel: boolean | null
-}
-
-export interface Navigation {
-  messageId: number | null
-  currentPage: number
-  totalPages: number
 }
 
 export interface User {
   id: number
-  tgId: string
-  nick: string | null
+  tgFromId: string
+  nick: string
   gender: UserGender | null
+  emojiGender: string
   status: UserStatus
   role: UserRole
-  avatarTgFileId: string | null
-  about: string | null
+  avatarTgFileId: string
+  about: string
   registerTime: Date
   lastActivityTime: Date
   photosTotal: number
   commentsTotal: number
-}
-
-export interface Register {
-  nick: string
-  gender: UserGender
-  avatarTgFileId: string
-  about: string
 }

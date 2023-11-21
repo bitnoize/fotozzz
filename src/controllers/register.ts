@@ -1,8 +1,9 @@
-import { Scenes, Composer, Markup } from 'telegraf'
+import { Scenes, Composer } from 'telegraf'
 import { message } from 'telegraf/filters'
 import {
   AppOptions,
   Controller,
+  Navigation,
   AppContext,
   AppContextHandler,
   AppContextExceptionHandler
@@ -58,11 +59,9 @@ export class RegisterController implements Controller {
       throw new Error(`authorize status not allowed to enter scene`)
     }
 
-    navigation.messageId = null
-    navigation.currentPage = 0
-    navigation.totalPages = 0
+    resetNavigation(navigation)
 
-    ctx.scene.session.register = {}
+    ctx.scene.session.register = {} as Partial<Register>
 
     await ctx.replyWithMarkdownV2(
       `Ответь на несколько вопросов, чтобы завершить регистрацию`
@@ -146,6 +145,10 @@ export class RegisterController implements Controller {
 
   private replyGenderComposer = (): Composer<AppContext> => {
     const handler = new Composer<AppContext>()
+
+    for (gender of USER_GENDERS) {
+      handler.action(`register-gender-${gener}`, this.replyGenderActionHandler)
+    }
 
     handler.action(USER_GENDERS, this.replyGenderActionHandler)
     handler.use(this.replyGenderUnknownHandler)

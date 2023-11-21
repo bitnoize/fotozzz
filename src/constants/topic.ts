@@ -1,2 +1,1 @@
-export const TOPIC_STATUSES = ['available', 'hidden']
-
+export const TOPIC_STATUSES = ['available']

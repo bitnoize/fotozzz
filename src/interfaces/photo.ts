@@ -6,16 +6,12 @@ export interface Photo {
   id: number
   userId: number
   topicId: number
-  groupTgId: string
-  channelTgId: string
+  groupTgChatId: number
+  groupTgMessageId: number
+  channelTgChatId: number
+  channelTgMessageId: number
   tgFileId: string
   description: string
   status: PhotoStatus
   createTime: Date
-}
-
-export interface NewPhoto {
-  tgFileId: string
-  topicId: number
-  description: string
 }

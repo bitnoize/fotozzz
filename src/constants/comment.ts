@@ -1,2 +1,2 @@
-export const COMMENT_STATUSES = ['approved', 'declined']
+export const COMMENT_STATUSES = ['published', 'deleted']
 

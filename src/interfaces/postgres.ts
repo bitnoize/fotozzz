@@ -18,7 +18,7 @@ export interface RowCount {
 
 export interface RowAuthorize {
   id: number
-  tg_id: string
+  tg_file_id: string
   nick: string | null
   gender: UserGender | null
   status: UserStatus
@@ -31,7 +31,7 @@ export interface RowAuthorize {
 
 export interface RowUser {
   id: number
-  tg_id: string
+  tg_from_id: string
   nick: string | null
   gender: UserGender | null
   status: UserStatus

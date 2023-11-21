@@ -18,19 +18,19 @@ CREATE TYPE user_role
 AS ENUM ('user', 'moderator', 'admin');
 
 CREATE TABLE users (
-  id                  INTEGER GENERATED ALWAYS AS IDENTITY,
-  tg_id               BIGINT NOT NULL,
-  nick                VARCHAR(50),
-  gender              user_gender,
-  status              user_status NOT NULL,
-  role                user_role NOT NULL,
-  avatar_tg_file_id   VARCHAR(100),
-  about               TEXT,
-  register_time       TIMESTAMPTZ DEFAULT NOW(),
-  last_activity_time  TIMESTAMPTZ DEFAULT NOW(),
+  id                    INTEGER GENERATED ALWAYS AS IDENTITY,
+  tg_from_id            BIGINT NOT NULL,
+  nick                  VARCHAR(50),
+  gender                user_gender,
+  status                user_status NOT NULL,
+  role                  user_role NOT NULL,
+  avatar_tg_file_id     VARCHAR(100),
+  about                 TEXT,
+  register_time         TIMESTAMPTZ DEFAULT NOW(),
+  last_activity_time    TIMESTAMPTZ DEFAULT NOW(),
 
   PRIMARY KEY(id),
-  UNIQUE(tg_id),
+  UNIQUE(tg_from_id),
   UNIQUE(nick)
 );
 
@@ -44,14 +44,14 @@ CREATE INDEX users_register_time_key ON users (register_time);
 CREATE INDEX users_last_activity_time_key ON users (last_activity_time);
 
 CREATE TABLE user_logs (
-  id                  UUID DEFAULT gen_random_uuid(),
-  user_id             INTEGER NOT NULL,
-  mod_user_id         INTEGER NOT NULL,
-  time                TIMESTAMPTZ DEFAULT NOW(),
-  action              VARCHAR(100) NOT NULL,
-  status              user_status NOT NULL,
-  role                user_role NOT NULL,
-  data                JSONB NOT NULL,
+  id                    UUID DEFAULT gen_random_uuid(),
+  user_id               INTEGER NOT NULL,
+  mod_user_id           INTEGER NOT NULL,
+  time                  TIMESTAMPTZ DEFAULT NOW(),
+  action                VARCHAR(100) NOT NULL,
+  status                user_status NOT NULL,
+  role                  user_role NOT NULL,
+  data                  JSONB NOT NULL,
 
   PRIMARY KEY(id),
   FOREIGN KEY(user_id) REFERENCES users(id),
@@ -70,19 +70,19 @@ CREATE INDEX user_logs_action_key ON user_logs (action);
 --
 
 CREATE TYPE topic_status
-AS ENUM ('available', 'hidden');
+AS ENUM ('available');
 
 CREATE TABLE topics (
-  id                  INTEGER GENERATED ALWAYS AS IDENTITY,
-  tg_id               BIGINT NOT NULL,
-  name                VARCHAR(100) NOT NULL,
-  status              topic_status NOT NULL,
-  description         TEXT,
-  create_time         TIMESTAMPTZ DEFAULT NOW(),
+  id                    INTEGER GENERATED ALWAYS AS IDENTITY,
+  tg_chat_id            BIGINT NOT NULL,
+  tg_thread_id          BIGINT NOT NULL,
+  name                  VARCHAR(100) NOT NULL,
+  status                topic_status NOT NULL,
+  description           TEXT,
+  create_time           TIMESTAMPTZ DEFAULT NOW(),
 
   PRIMARY KEY(id),
-  UNIQUE(tg_id),
-  UNIQUE(name)
+  UNIQUE(tg_chat_id, tg_thread_id),
 );
 
 GRANT SELECT, INSERT, UPDATE ON topics TO fotozzz_app;
@@ -92,13 +92,13 @@ CREATE INDEX topics_status_key ON topics (status);
 CREATE INDEX topics_create_time_key ON topics (create_time);
 
 CREATE TABLE topic_logs (
-  id                  UUID DEFAULT gen_random_uuid(),
-  topic_id            INTEGER NOT NULL,
-  mod_user_id         INTEGER NOT NULL,
-  time                TIMESTAMPTZ DEFAULT NOW(),
-  action              VARCHAR(100) NOT NULL,
-  status              topic_status NOT NULL,
-  data                JSONB NOT NULL,
+  id                    UUID DEFAULT gen_random_uuid(),
+  topic_id              INTEGER NOT NULL,
+  mod_user_id           INTEGER NOT NULL,
+  time                  TIMESTAMPTZ DEFAULT NOW(),
+  action                VARCHAR(100) NOT NULL,
+  status                topic_status NOT NULL,
+  data                  JSONB NOT NULL,
 
   PRIMARY KEY(id),
   FOREIGN KEY(topic_id) REFERENCES topics(id),
@@ -117,23 +117,26 @@ CREATE INDEX topic_logs_action_key ON topic_logs (action);
 --
 
 CREATE TYPE photo_status
-AS ENUM ('approved', 'declined');
+AS ENUM ('published', 'hidden', 'deleted');
 
 CREATE TABLE photos (
-  id                  INTEGER GENERATED ALWAYS AS IDENTITY,
-  user_id             INTEGER NOT NULL,
-  topic_id            SMALLINT NOT NULL,
-  group_tg_id         BIGINT NOT NULL,
-  channel_tg_id       BIGINT NOT NULL,
-  tg_file_id          VARCHAR(100) NOT NULL,
-  description         TEXT,
-  status              photo_status NOT NULL,
-  create_time         TIMESTAMPTZ DEFAULT NOW(),
+  id                    INTEGER GENERATED ALWAYS AS IDENTITY,
+  user_id               INTEGER NOT NULL,
+  topic_id              SMALLINT NOT NULL,
+  group_tg_chat_id      BIGINT NOT NULL,
+  group_tg_message_id   BIGINT NOT NULL,
+  channel_tg_chat_id    BIGINT NOT NULL,
+  channel_tg_message_id BIGINT NOT NULL,
+  tg_file_id            VARCHAR(100) NOT NULL,
+  description           TEXT,
+  status                photo_status NOT NULL,
+  create_time           TIMESTAMPTZ DEFAULT NOW(),
 
   PRIMARY KEY(id),
   FOREIGN KEY(user_id) REFERENCES users(id),
   FOREIGN KEY(topic_id) REFERENCES topics(id),
-  UNIQUE(tg_id)
+  UNIQUE(group_tg_chat_id, group_tg_message_id),
+  UNIQUE(channel_tg_chat_id, channel_tg_message_id)
 );
 
 GRANT SELECT, INSERT, UPDATE ON photos TO fotozzz_app;
@@ -145,13 +148,13 @@ CREATE INDEX photos_status_key ON photos (status);
 CREATE INDEX photos_create_time_key ON photos (create_time);
 
 CREATE TABLE photo_logs (
-  id                  UUID DEFAULT gen_random_uuid(),
-  photo_id            INTEGER NOT NULL,
-  mod_user_id         INTEGER NOT NULL,
-  time                TIMESTAMPTZ DEFAULT NOW(),
-  action              VARCHAR(100) NOT NULL,
-  status              photo_status NOT NULL,
-  data                JSONB NOT NULL,
+  id                    UUID DEFAULT gen_random_uuid(),
+  photo_id              INTEGER NOT NULL,
+  mod_user_id           INTEGER NOT NULL,
+  time                  TIMESTAMPTZ DEFAULT NOW(),
+  action                VARCHAR(100) NOT NULL,
+  status                photo_status NOT NULL,
+  data                  JSONB NOT NULL,
 
   PRIMARY KEY(id),
   FOREIGN KEY(photo_id) REFERENCES photos(id),
@@ -173,20 +176,18 @@ CREATE TYPE rate_value
 AS ENUM ('not_appropriate', 'cute', 'amazing', 'shock');
 
 CREATE TABLE rates (
-  id                  INTEGER GENERATED ALWAYS AS IDENTITY,
-  user_id             INTEGER NOT NULL,
-  topic_id            SMALLINT NOT NULL,
-  photo_id            INTEGER NOT NULL,
-  tg_id               BIGINT NOT NULL,
-  value               rate_value NOT NULL,
-  create_time         TIMESTAMPTZ DEFAULT NOW(),
+  id                    INTEGER GENERATED ALWAYS AS IDENTITY,
+  user_id               INTEGER NOT NULL,
+  topic_id              SMALLINT NOT NULL,
+  photo_id              INTEGER NOT NULL,
+  value                 rate_value NOT NULL,
+  create_time           TIMESTAMPTZ DEFAULT NOW(),
 
   PRIMARY KEY(id),
   FOREIGN KEY(user_id) REFERENCES users(id),
   FOREIGN KEY(topic_id) REFERENCES topics(id),
   FOREIGN KEY(photo_id) REFERENCES photos(id),
-  UNIQUE(user_id, topic_id, photo_id),
-  UNIQUE(tg_id)
+  UNIQUE(user_id, topic_id, photo_id)
 );
 
 GRANT SELECT, INSERT, UPDATE ON rates TO fotozzz_app;
@@ -199,13 +200,13 @@ CREATE INDEX rates_value_key ON rates (value);
 CREATE INDEX rates_create_time_key ON rates (create_time);
 
 CREATE TABLE rate_logs (
-  id                  UUID DEFAULT gen_random_uuid(),
-  rate_id             INTEGER NOT NULL,
-  mod_user_id         INTEGER NOT NULL,
-  time                TIMESTAMPTZ DEFAULT NOW(),
-  action              VARCHAR(100) NOT NULL,
-  value               rate_value NOT NULL,
-  data                JSONB NOT NULL,
+  id                    UUID DEFAULT gen_random_uuid(),
+  rate_id               INTEGER NOT NULL,
+  mod_user_id           INTEGER NOT NULL,
+  time                  TIMESTAMPTZ DEFAULT NOW(),
+  action                VARCHAR(100) NOT NULL,
+  value                 rate_value NOT NULL,
+  data                  JSONB NOT NULL,
 
   PRIMARY KEY(id),
   FOREIGN KEY(rate_id) REFERENCES rates(id),
@@ -224,23 +225,24 @@ CREATE INDEX rate_logs_action_key ON rate_logs (action);
 --
 
 CREATE TYPE comment_status
-AS ENUM ('approved', 'declined');
+AS ENUM ('published', 'deleted');
 
 CREATE TABLE comments (
-  id                  INTEGER GENERATED ALWAYS AS IDENTITY,
-  user_id             INTEGER NOT NULL,
-  topic_id            SMALLINT NOT NULL,
-  photo_id            INTEGER NOT NULL,
-  tg_id               BIGINT NOT NULL,
-  status              comment_status NOT NULL,
-  text                TEXT,
-  create_time         TIMESTAMPTZ DEFAULT NOW(),
+  id                    INTEGER GENERATED ALWAYS AS IDENTITY,
+  user_id               INTEGER NOT NULL,
+  topic_id              SMALLINT NOT NULL,
+  photo_id              INTEGER NOT NULL,
+  channel_tg_chat_id    BIGINT NOT NULL,
+  channel_tg_message_id BIGINT NOT NULL,
+  status                comment_status NOT NULL,
+  text                  TEXT,
+  create_time           TIMESTAMPTZ DEFAULT NOW(),
 
   PRIMARY KEY(id),
   FOREIGN KEY(user_id) REFERENCES users(id),
   FOREIGN KEY(topic_id) REFERENCES topics(id),
   FOREIGN KEY(photo_id) REFERENCES photos(id),
-  UNIQUE(tg_id)
+  UNIQUE(channel_tg_chat_id, channel_tg_message_id)
 );
 
 GRANT SELECT, INSERT, UPDATE ON comments TO fotozzz_app;
@@ -252,13 +254,13 @@ CREATE INDEX comments_photo_id_key ON comments (photo_id);
 CREATE INDEX comments_create_time_key ON comments (create_time);
 
 CREATE TABLE comment_logs (
-  id                  UUID DEFAULT gen_random_uuid(),
-  comment_id          INTEGER NOT NULL,
-  mod_user_id         INTEGER NOT NULL,
-  time                TIMESTAMPTZ DEFAULT NOW(),
-  action              VARCHAR(100) NOT NULL,
-  status              comment_status NOT NULL,
-  data                JSONB NOT NULL,
+  id                    UUID DEFAULT gen_random_uuid(),
+  comment_id            INTEGER NOT NULL,
+  mod_user_id           INTEGER NOT NULL,
+  time                  TIMESTAMPTZ DEFAULT NOW(),
+  action                VARCHAR(100) NOT NULL,
+  status                comment_status NOT NULL,
+  data                  JSONB NOT NULL,
 
   PRIMARY KEY(id),
   FOREIGN KEY(comment_id) REFERENCES comments(id),
@@ -271,4 +273,28 @@ CREATE INDEX comment_logs_comment_id_key ON comment_logs (comment_id);
 CREATE INDEX comment_logs_mod_user_id_key ON comment_logs (mod_user_id);
 CREATE INDEX comment_logs_time_key ON comment_logs (time);
 CREATE INDEX comment_logs_action_key ON comment_logs (action);
+
+--
+-- Test Data
+--
+
+INSERT INTO topics (
+  tg_chat_id, tg_thread_id, name, status, description
+)
+VALUES (-1002066427722, 1, 'Анонсы', 'available', NULL)
+
+INSERT INTO topics (
+  tg_chat_id, tg_thread_id, name, status, description
+)
+VALUES (-1002066427722, 7, 'Портрет', 'available', NULL)
+
+INSERT INTO topics (
+  tg_chat_id, tg_thread_id, name, status, description
+)
+VALUES (-1002066427722, 8, 'Пейзаж', 'available', NULL)
+
+INSERT INTO topics (
+  tg_chat_id, tg_thread_id, name, status, description
+)
+VALUES (-1002066427722, 10, 'Натюрморт', 'available', NULL)
 

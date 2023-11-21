@@ -1,4 +1,4 @@
-import pg from 'pg'
+import pg, { types } from 'pg'
 import { PostgresServiceOptions } from '../interfaces/postgres.js'
 import { Authorize, User, UserGender } from '../interfaces/user.js'
 import { Topic } from '../interfaces/topic.js'
@@ -38,6 +38,10 @@ export class PostgresService {
       idleTimeoutMillis: 10000,
       max: 10,
       allowExitOnIdle: true
+    })
+
+    types.setTypeParser(types.builtins.INT8, (value: string) => {
+      return parseInt(value)
     })
 
     logger.info(`PostgresService initialized`)
@@ -654,7 +658,7 @@ export class PostgresService {
 
   private readonly selectAuthorizeByIdForShareSql = `
 SELECT
-  id, tg_id, nick, gender, status, role, register_time, last_activity_time
+  id, tg_from_id, nick, gender, status, role, register_time, last_activity_time
 FROM users
 WHERE id = $1
 FOR SHARE
@@ -662,7 +666,7 @@ FOR SHARE
 
   private readonly selectAuthorizeByIdForUpdateSql = `
 SELECT
-  id, tg_id, nick, gender, status, role, register_time, last_activity_time
+  id, tg_from_id, nick, gender, status, role, register_time, last_activity_time
 FROM users
 WHERE id = $1
 FOR UPDATE
@@ -670,15 +674,15 @@ FOR UPDATE
 
   private readonly selectAuthorizeByTgIdForShareSql = `
 SELECT
-  id, tg_id, nick, gender, status, role, register_time, last_activity_time
+  id, tg_from_id, nick, gender, status, role, register_time, last_activity_time
 FROM users
-WHERE tg_id = $1
+WHERE tg_from_id = $1
 FOR SHARE
 `
 
   private readonly selectUserByIdSql = `
 SELECT
-  id, tg_id, nick, gender, status, role, avatar_tg_file_id, about,
+  id, tg_from_id, nick, gender, status, role, avatar_tg_file_id, about,
   register_time, last_activity_time
 FROM users
 WHERE id = $1
@@ -689,8 +693,9 @@ SELECT id FROM users WHERE nick = $1
 `
 
   private readonly insertUserSql = `
-INSERT INTO users
-  (tg_id, status, role)
+INSERT INTO users (
+  tg_from_id, status, role
+)
 VALUES ($1, $2, $3)
 RETURNING id
 `
@@ -714,14 +719,15 @@ WHERE id = $1
 `
 
   private readonly insertUserLogSql = `
-INSERT INTO user_logs
-  (user_id, mod_user_id, action, status, role, data)
+INSERT INTO user_logs (
+  user_id, mod_user_id, action, status, role, data
+)
 VALUES ($1, $2, $3, $4, $5, $6)
 `
 
   private readonly selectTopicByIdForShareSql = `
 SELECT
-  id, tg_id, name, status, description, create_time
+  id, tg_chat_id, tg_thread_id, name, status, description, create_time
 FROM topics
 WHERE id = $1
 FOR SHARE
@@ -729,7 +735,7 @@ FOR SHARE
 
   private readonly selectTopicByIdForUpdateSql = `
 SELECT
-  id, tg_id, name, status, description, create_time
+  id, tg_chat_id, tg_thread_id, name, status, description, create_time
 FROM topics
 WHERE id = $1
 FOR UPDATE
@@ -737,28 +743,31 @@ FOR UPDATE
 
   private readonly selectTopicsSql = `
 SELECT
-  id, tg_id, name, status, description, create_time
+  id, tg_chat_id, tg_thread_id, name, status, description, create_time
 FROM topics
 WHERE id = $1
 ORDER BY id ASC
 `
 
   private readonly insertTopicSql = `
-INSERT INTO topics
-  (...)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO topics (
+  tg_chat_id, tg_thread_id, name, description
+)
+VALUES ($1, $2, $3, $4)
 RETURNING id
 `
 
   private readonly insertTopicLogSql = `
-INSERT INTO topic_logs
-  (topic_id, mod_user_id, action, status, data)
+INSERT INTO topic_logs (
+  topic_id, mod_user_id, action, status, data
+)
 VALUES ($1, $2, $3, $4, $5)
 `
 
   private readonly selectPhotoByIdForShareSql = `
 SELECT
-  id, user_id, topic_id, group_tg_id, channel_tg_id, tg_file_id,
+  id, user_id, topic_id, group_tg_chat_id, group_tg_message_id,
+  channel_tg_chat_id, channel_tg_message_id, tg_file_id,
   description, status, create_time
 FROM photos
 WHERE id = $1
@@ -767,7 +776,8 @@ FOR SHARE
 
   private readonly selectPhotoByIdForUpdateSql = `
 SELECT
-  id, user_id, topic_id, group_tg_id, channel_tg_id, tg_file_id,
+  id, user_id, topic_id, group_tg_chat_id, group_tg_message_id,
+  channel_tg_chat_id, channel_tg_message_id, tg_file_id,
   description, status, create_time
 FROM photos
 WHERE id = $1
@@ -776,7 +786,8 @@ FOR UPDATE
 
   private readonly selectPhotosByUserIdSql = `
 SELECT
-  id, user_id, topic_id, group_tg_id, channel_tg_id, tg_file_id,
+  id, user_id, topic_id, group_tg_chat_id, group_tg_message_id,
+  channel_tg_chat_id, channel_tg_message_id, tg_file_id,
   description, status, create_time
 FROM photos
 WHERE user_id = $1 AND status = $2
@@ -785,15 +796,18 @@ ORDER BY create_time DESC
 
   private readonly selectPhotosCountByUserIdSql = `
 SELECT
-  COUNT(*)::INTEGER AS count
+  COUNT(*) AS count
 FROM photos
 WHERE user_id = $1 AND status = $2
 `
 
   private readonly insertPhotoSql = `
-INSERT INTO photos
-  (user_id, topic_id, group_tg_id, channel_tg_id, tg_file_id, description, status)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO photos (
+  user_id, topic_id, group_tg_chat_id, group_tg_message_id,
+  channel_tg_chat_id, channel_tg_message_id, tg_file_id,
+  description, status
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING id
 `
 
@@ -805,28 +819,26 @@ RETURNING id
 `
 
   private readonly insertPhotoLogSql = `
-INSERT INTO photo_logs
-  (photo_id, mod_user_id, action, status, data)
+INSERT INTO photo_logs (
+  photo_id, mod_user_id, action, status, data
+)
 VALUES ($1, $2, $3, $4, $5)
 `
 
-
-
   private readonly insertRateSql = `
-INSERT INTO rates
-  (user_id, topic_id, photo_id, tg_id, value)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO rates (
+  user_id, topic_id, photo_id, value
+)
+VALUES ($1, $2, $3, $4)
 RETURNING id
 `
 
   private readonly insertRateLogSql = `
-INSERT INTO rate_logs
-  (rate_id, mod_user_id, action, value, data)
+INSERT INTO rate_logs (
+  rate_id, mod_user_id, action, value, data
+)
 VALUES ($1, $2, $3, $4, $5)
 `
-
-
-
 
   private readonly selectCommentByIdForShareSql = `
 SELECT
@@ -854,7 +866,7 @@ ORDER BY create_time DESC
 
   private readonly selectCommentsCountByUserIdSql = `
 SELECT
-  COUNT(*)::INTEGER AS count
+  COUNT(*) AS count
 FROM comments
 WHERE user_id = $1 AND status = $2
 `

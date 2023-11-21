@@ -1,14 +1,15 @@
-import { Scenes, session, Telegraf, Markup } from 'telegraf'
-import { message } from 'telegraf/filters'
+import { Scenes, session, Telegraf } from 'telegraf'
 import { Redis } from '@telegraf/session/redis'
 import { HttpsProxyAgent } from 'hpagent'
 import {
   AppOptions,
   Controller,
+  Navigation,
+  Membership,
   AppContext,
   AppSession,
   AppContextHandler,
-  RouteMainMenuHandler
+  PrepareMenuHandler
 } from './interfaces/app.js'
 import { RedisService } from './services/redis.js'
 import { PostgresService } from './services/postgres.js'
@@ -16,13 +17,7 @@ import { RegisterController } from './controllers/register.js'
 import { ProfileController } from './controllers/profile.js'
 import { PhotoController } from './controllers/photo.js'
 import { NewPhotoController } from './controllers/new-photo.js'
-import { Membership } from './interfaces/user.js'
-import {
-  getEmojiGender,
-  markupKeyboardCheckGroup,
-  markupKeyboardCheckChannel,
-  markupKeyboardMain,
-} from './helpers/telegram.js'
+import { resetNavigation } from './helpers/telegramjs'
 import { logger } from './logger.js'
 
 export class App {
@@ -36,10 +31,6 @@ export class App {
     const { botToken, useProxy, proxyUrl, redisUrl } = this.options
 
     if (useProxy) {
-      if (process.env.NODE_ENV === 'production') {
-        throw new Error(`Proxy usage not allowed in production mode`)
-      }
-
       this.agent = new HttpsProxyAgent({
         proxy: proxyUrl
       })
@@ -75,12 +66,15 @@ export class App {
     this.bot.use(this.membershipHandler)
     this.bot.use(this.navigationHandler)
 
-    this.bot.command('start', this.startCommandHandler)
-    this.bot.command('profile', this.profileCommandHandler)
-    this.bot.command('photo', this.photoCommandHandler)
+    this.bot.command('start', this.startMenuHandler)
+    this.bot.command('profile', this.profileMenuHandler)
+    this.bot.command('photo', this.photoMenuHandler)
+    this.bot.command('search', this.searchMenuHandler)
 
-    this.bot.action('main-start', this.startCommandHandler)
-    this.bot.action('main-profile', this.profileCommandHandler)
+    this.bot.action('main-start', this.startMenuHandler)
+    this.bot.action('main-profile', this.profileMenuHandler)
+    this.bot.action('main-photo', this.profileMenuHandler)
+    this.bot.action('main-search', this.searchMenuHandler)
 
     this.bot.on('chat_join_request', this.chatJoinRequestHandler)
 
@@ -104,22 +98,19 @@ export class App {
     if (ctx.from !== undefined && ctx.chat !== undefined) {
       const { id: fromId, is_bot: fromIsBot } = ctx.from
 
-      if (!fromIsBot) {
+      //if (!fromIsBot) {
         const authorize = await this.postgresService.authorizeUser(fromId, ctx.from)
 
         if (authorize.status !== 'banned') {
           ctx.session.authorize = authorize
 
-          logger.debug(`Authorize: initialize context session`)
-          console.dir(authorize, { depth: 2 })
-
           await next()
         } else {
           logger.info(`Authorize: ignore banned user ${authorize.id}`)
         }
-      } else {
-        logger.info(`Authorize: ignore bot ${fromId}`)
-      }
+      //} else {
+      //  logger.info(`Authorize: ignore bot ${fromId}`)
+      //}
     } else {
       logger.warn(`Authorize: ignore unknown source`)
       console.dir(ctx, { depth: 4 })
@@ -153,68 +144,61 @@ export class App {
 
     ctx.session.membership = membership
 
-    logger.debug(`Membership: initialize context session`)
-    console.dir(membership, { depth: 2 })
-
     await next()
   }
 
   private navigationHandler: AppContextHandler = async (ctx, next) => {
-    const navigation = ctx.session.navigation ??= {
-      messageId: null,
-      currentPage: 0,
-      totalPages: 0
-    }
+    if (ctx.session.navigation === undefined) {
+      const navigation: Navigation = {
+        messageId: null,
+        currentPage: 0,
+        totalPages: 0
+      }
 
-    logger.debug(`Navigation: initialize context session`)
-    console.dir(navigation, { depth: 2 })
+      ctx.session.navigation = navigation
+    }
 
     await next()
   }
 
-  private startCommandHandler: AppContextHandler = async (ctx) => {
-    const handler: RouteMainMenuHandler = async (
+  private startMenuHandler: AppContextHandler = async (ctx) => {
+    const handler: PrepareMenuHandler = async (
       authorize,
       membership,
       navigation
     ) => {
-      const emojiGender = getEmojiGender(authorize.gender)
+      const { nick, emojiGender } = authorize
 
       const message = await ctx.replyWithMarkdownV2(
-        `Бот приветствует тебя, ${emojiGender} *${authorize.nick}*\n` +
+        `Бот приветствует тебя, ${emojiGender} *${nick}*\n` +
         `Описание сервиса`,
-        markupKeyboardMain()
+        markupKeyboardMainMenu()
       )
 
       navigation.messageId = message.message_id
     }
 
-    await this.routeMainMenu(ctx, handler)
+    await this.prepareMenu(ctx, handler)
   }
 
-  private profileCommandHandler: AppContextHandler = async (ctx) => {
-    const commandHandler: RouteMainMenuHandler = async () => {
+  private profileMenuHandler: AppContextHandler = async (ctx) => {
+    const handler: PrepareMenuHandler = async () => {
       await ctx.scene.enter('profile')
     }
 
-    await this.routeMainMenu(ctx, commandHandler)
+    await this.prepareMenu(ctx, handler)
   }
 
-  private photoCommandHandler: AppContextHandler = async (ctx) => {
-    const commandHandler: RouteMainMenuHandler = async () => {
+  private photoMenuHandler: AppContextHandler = async (ctx) => {
+    const handler: PrepareMenuHandler = async () => {
       await ctx.scene.enter('photo')
     }
 
-    await this.routeMainMenu(ctx, commandHandler)
+    await this.prepareMenu(ctx, handler)
   }
 
   private chatJoinRequestHandler: AppContextHandler = async (ctx) => {
     const { groupChatId, channelChatId } = this.options
-
-    const authorize = ctx.session.authorize
-    if (authorize === undefined) {
-      throw new Error(`context session authorize lost`)
-    }
 
     if (ctx.chatJoinRequest !== undefined) {
       const { id: chatId } =  ctx.chatJoinRequest.chat
@@ -235,13 +219,10 @@ export class App {
         logger.warn(`ChatJoinRequest: ignore unknown group: ${chatId}`)
         console.dir(ctx.chatJoinRequest, { depth: 4 })
       }
-    } else {
-      logger.warn(`ChatJoinRequest: skip unknown`)
-      console.dir(ctx, { depth: 4 })
     }
   }
 
-  private routeMainMenu = async (
+  private prepareMenu = async (
     ctx: AppContext,
     handler: RouteMainMenuHandler
   ): Promise<void> => {
@@ -264,27 +245,24 @@ export class App {
 
     if (navigation.messageId !== null) {
       await ctx.deleteMessage(navigation.messageId)
-
-      navigation.messageId = null
     }
 
-    navigation.currentPage = 0
-    navigation.totalPages = 0
+    resetNavigation(navigation)
 
     if (authorize.status === 'register') {
       await ctx.scene.enter('register')
     } else {
       if (!membership.checkGroup) {
         const message = await ctx.replyWithMarkdownV2(
-          `Подпишись на [группу](${groupUrl})`,
-          markupKeyboardCheckGroup()
+          `Необходимо подписаться на [группу](${groupUrl})`,
+          this.markupKeyboardCheckGroup()
         )
 
         navigation.messageId = message.message_id
       } else if (!membership.checkChannel) {
         const message = await ctx.replyWithMarkdownV2(
-          `Подпишись на [канал](${channelUrl})`,
-          markupKeyboardCheckChannel()
+          `Необходимо подписаться на [канал](${channelUrl})`,
+          this.markupKeyboardCheckChannel()
         )
 
         navigation.messageId = message.message_id
@@ -296,7 +274,7 @@ export class App {
 
   private changeChatMemberHandler: AppContextHandler = async (ctx) => {
     logger.info(`Bot changeChatMemberHandler`)
-    console.dir(ctx, { depth: 4 })
+    //console.dir(ctx, { depth: 4 })
   }
 
   private unknownHandler: AppContextHandler = async (ctx) => {
@@ -323,5 +301,25 @@ export class App {
       console.error(error.stack)
       console.dir(ctx, { depth: 4 })
     }
+  }
+
+  private markupKeyboardCheckGroup = () => {
+    return Markup.inlineKeyboard([
+      Markup.button.callback(`Я уже подписан на группу`, 'main-start')
+    ])
+  }
+
+  private markupKeyboardCheckChannel = () => {
+    return Markup.inlineKeyboard([
+      Markup.button.callback(`Я уже подписан на канал`, 'main-start'),
+    ])
+  }
+
+  private markupKeyboardMainMenu = () => {
+    return Markup.inlineKeyboard([
+      [Markup.button.callback('Профиль', 'main-profile')],
+      [Markup.button.callback('Фото', 'main-photo')],
+      [Markup.button.callback('Поиск', 'main-search')],
+    ])
   }
 }

@@ -4,7 +4,8 @@ export type TopicStatus = (typeof TOPIC_STATUSES)[number]
 
 export interface Topic {
   id: number
-  tgId: string
+  tgChatId: number
+  tgThreadId: number
   name: string
   status: TopicStatus
   description: string

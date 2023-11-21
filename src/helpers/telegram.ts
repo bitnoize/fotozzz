@@ -5,22 +5,6 @@ import { UserGender, Register } from '../interfaces/user.js'
 import { USER_NICK_REGEXP, USER_GENDERS } from '../constants/user.js'
 import { GENDER_EMOJIS, GENDER_EMOJI_UNKNOWN } from '../constants/misc.js'
 
-export const getEmojiGender = (gender: UserGender | null): string => {
-  let genderEmoji: string | undefined
-
-  if (gender !== null) {
-    genderEmoji = GENDER_EMOJIS[gender]
-
-    if (genderEmoji === undefined) {
-      throw new Error(`unknown gender '${gender}'`)
-    }
-  } else {
-    genderEmoji = GENDER_EMOJI_UNKNOWN
-  }
-
-  return genderEmoji
-}
-
 export const isUserGender = (userGender: unknown): userGender is UserGender => {
   return (
     userGender != null &&
@@ -69,24 +53,10 @@ export const isNewPhoto = (
   )
 }
 
-export const markupKeyboardCheckGroup = () => {
-  return Markup.inlineKeyboard([
-    Markup.button.callback(`Я уже подписан на группу`, 'main-start'),
-  ])
-}
-
-export const markupKeyboardCheckChannel = () => {
-  return Markup.inlineKeyboard([
-    Markup.button.callback(`Я уже подписан на канал`, 'main-start'),
-  ])
-}
-
-export const markupKeyboardMain = () => {
-  return Markup.inlineKeyboard([
-    [Markup.button.callback('Профиль', 'main-profile')],
-    [Markup.button.callback('Фото', 'main-photo')],
-    [Markup.button.callback('Поиск', 'main-search')],
-  ])
+export const resetNavigation = (navigation: Navigation) => {
+  navigation.messageId = null
+  navigation.currentPage = 0
+  navigation.totalPages = 0
 }
 
 export const markupKeyboardGender = () => {
@@ -101,19 +71,19 @@ export const markupKeyboardProfile = () => {
   return Markup.inlineKeyboard([
     Markup.button.callback('Редактировать аватар', 'edit-avatar'),
     Markup.button.callback('Редактировать о себе', 'edit-about'),
-    Markup.button.callback('Вернуться в меню', 'return-menu'),
+    Markup.button.callback('Вернуться в меню', 'back-main'),
   ])
 }
 
 export const markupKeyboardPhoto = () => {
   return Markup.inlineKeyboard([
     [
-      Markup.button.callback('Предыдущее', 'photo-prev'),
-      Markup.button.callback('Просмотр', 'photo-view')
-      Markup.button.callback('Следующее', 'photo-next'),
+      Markup.button.callback('Предыдущее', 'nav-prev'),
+      Markup.button.callback('Просмотр', 'view')
+      Markup.button.callback('Следующее', 'nav-next'),
     ],
     [
-      Markup.button.callback('Удалить', 'photo-delete')
+      Markup.button.callback('Удалить', 'delete')
     ],
     [
       Markup.button.callback('В главное меню', 'return-menu')

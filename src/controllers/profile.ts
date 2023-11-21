@@ -1,4 +1,4 @@
-import { Scenes, Composer, Markup } from 'telegraf'
+import { Scenes, Composer } from 'telegraf'
 import { message } from 'telegraf/filters'
 import {
   AppOptions,
