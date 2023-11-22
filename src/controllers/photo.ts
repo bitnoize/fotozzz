@@ -1,8 +1,9 @@
-import { Scenes, Composer, Markup } from 'telegraf'
+import { Scenes, Composer } from 'telegraf'
 import { message } from 'telegraf/filters'
 import {
   AppOptions,
   Controller,
+  Navigation,
   AppContext,
   AppContextHandler,
   AppContextExceptionHandler
@@ -10,8 +11,9 @@ import {
 import { RedisService } from '../services/redis.js'
 import { PostgresService } from '../services/postgres.js'
 import {
-  getEmojiGender,
-  markupKeyboardPhoto
+  resetNavigation,
+  keyboardMainMenu,
+  keyboardPhotoMenu
 } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
 
@@ -26,20 +28,13 @@ export class PhotoController implements Controller {
 
     this.scene.enter(this.enterSceneHandler)
 
-    this.scene.action('next-photo', this.nextPhotoHandler)
-    this.scene.action('view-photo', this.viewPhotoHandler)
-    this.scene.action('prev-photo', this.prevPhotoHandler)
-    this.scene.action('delete-photo', this.deletePhotoHandler)
-    this.scene.action('return-menu', this.returnMenuHandler)
+    this.scene.action('photo-new', this.newPhotoHandler)
+    this.scene.action('photo-return-main-menu', this.returnMainMenuHandler)
 
     this.scene.leave(this.leaveSceneHandler)
 
     this.scene.use(this.unknownHandler)
     this.scene.use(Scenes.BaseScene.catch(this.exceptionHandler))
-  }
-
-  private deletePhotoHandler = async (ctx: AppContext): Promise<void> => {
-    
   }
 
   private enterSceneHandler = async (ctx: AppContext): Promise<void> => {
@@ -53,28 +48,78 @@ export class PhotoController implements Controller {
       throw new Error(`context session navigation lost`)
     }
 
-    const userPhotos = await this.postgresService.getUserPhotos(authorize.id)
+    resetNavigation(navigation)
 
-    if (userPhotos.length === 0) {
+    const allowedStatuses = ['active', 'penalty']
+    if (allowedStatuses.includes(authorize.status)) {
+      const userPhotos = await this.postgresService.getUserPhotos(authorize.id)
+
+      if (userPhotos.length === 0) {
+        const message = await ctx.replyWithMarkdownV2(
+          `У вас нет опубликованных фото\n` +
+          `Отправьте мне фото для публикации` +
+          `Вы можете загрузить 3 фото в течении 24 часов`
+        )
+
+        navigation.messageId = message.message_id
+        navigation.currentPage = 0
+        navigation.totalPages = 0
+      } else {
+        const userPhoto = userPhotos[1]
+        if (userPhoto === undefined) {
+          throw new Error(`can't get first user photo`)
+        }
+
+        const extra = markupKeyboardPhotoMenu()
+
+        extra.caption = userPhoto.description
+
+
+      }
+
+
+
+
+
+
+
+      const extra = keyboardPhotoMenu()
+
+      const { emojiGender, nick, about } = userFull
+      extra.caption = `${emojiGender} ${nick}\nО себе: ${about}`
+
+      const message = await ctx.sendPhoto(userFull.avatarTgFileId, extra)
+
+      navigation.messageId = message.message_id
+    } else {
+      await ctx.scene.leave()
+
       const message = await ctx.replyWithMarkdownV2(
-        `У вас нет опубликованных фото\n` +
-        `Отправьте мне фото для публикации` +
-        `Вы можете загрузить 3 фото в течении 24 часов`
+        `Фото доступны только для активных юзеров`,
+        keyboardMainMenu()
       )
 
       navigation.messageId = message.message_id
-      navigation.currentPage = 0
-      navigation.totalPages = 0
+    }
+
+
+
+
+
+
+
+
+
+    if (userPhotos.length === 0) {
     } else {
       const userPhoto = userPhotos[1]
       if (userPhoto === undefined) {
         throw new Error(`can't get first user photo`)
       }
 
-      const emojiGender = getEmojiGender(user.gender)
-      const extra = markupKeyboardPhoto()
 
-      extra.caption = userPhoto.description
+
+
 
       if (navigation.messageId != null) {
         const message = await ctx.editMessageMedia(

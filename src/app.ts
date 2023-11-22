@@ -1,4 +1,4 @@
-import { Scenes, session, Telegraf } from 'telegraf'
+import { Scenes, session, Telegraf, Markup } from 'telegraf'
 import { Redis } from '@telegraf/session/redis'
 import { HttpsProxyAgent } from 'hpagent'
 import {
@@ -15,9 +15,13 @@ import { RedisService } from './services/redis.js'
 import { PostgresService } from './services/postgres.js'
 import { RegisterController } from './controllers/register.js'
 import { ProfileController } from './controllers/profile.js'
-import { PhotoController } from './controllers/photo.js'
-import { NewPhotoController } from './controllers/new-photo.js'
-import { resetNavigation } from './helpers/telegramjs'
+import { ChangeAvatarController } from './controllers/change-avatar.js'
+import { ChangeAboutController } from './controllers/change-about.js'
+import {
+  keyboardMainCheckGroup,
+  keyboardMainCheckChannel,
+  keyboardMainMenu
+} from './helpers/telegram.js'
 import { logger } from './logger.js'
 
 export class App {
@@ -53,8 +57,8 @@ export class App {
 
     controllers.push(new RegisterController(this.options))
     controllers.push(new ProfileController(this.options))
-    controllers.push(new PhotoController(this.options))
-    controllers.push(new NewPhotoController(this.options))
+    controllers.push(new ChangeAvatarController(this.options))
+    controllers.push(new ChangeAboutController(this.options))
 
     const stage = new Scenes.Stage<AppContext>(
       controllers.map((controller) => controller.scene)
@@ -68,13 +72,13 @@ export class App {
 
     this.bot.command('start', this.startMenuHandler)
     this.bot.command('profile', this.profileMenuHandler)
-    this.bot.command('photo', this.photoMenuHandler)
-    this.bot.command('search', this.searchMenuHandler)
+    //this.bot.command('photo', this.photoMenuHandler)
+    //this.bot.command('search', this.searchMenuHandler)
 
     this.bot.action('main-start', this.startMenuHandler)
     this.bot.action('main-profile', this.profileMenuHandler)
-    this.bot.action('main-photo', this.profileMenuHandler)
-    this.bot.action('main-search', this.searchMenuHandler)
+    //this.bot.action('main-photo', this.profileMenuHandler)
+    //this.bot.action('main-search', this.searchMenuHandler)
 
     this.bot.on('chat_join_request', this.chatJoinRequestHandler)
 
@@ -99,7 +103,10 @@ export class App {
       const { id: fromId, is_bot: fromIsBot } = ctx.from
 
       //if (!fromIsBot) {
-        const authorize = await this.postgresService.authorizeUser(fromId, ctx.from)
+        const authorize = await this.postgresService.authorizeUser(
+          fromId,
+          ctx.from
+        )
 
         if (authorize.status !== 'banned') {
           ctx.session.authorize = authorize
@@ -158,6 +165,8 @@ export class App {
       ctx.session.navigation = navigation
     }
 
+    console.dir(ctx.session.navigation)
+
     await next()
   }
 
@@ -170,9 +179,8 @@ export class App {
       const { nick, emojiGender } = authorize
 
       const message = await ctx.replyWithMarkdownV2(
-        `Бот приветствует тебя, ${emojiGender} *${nick}*\n` +
-        `Описание сервиса`,
-        markupKeyboardMainMenu()
+        `Бот приветствует тебя, ${emojiGender} *${nick}*\n`,
+        keyboardMainMenu()
       )
 
       navigation.messageId = message.message_id
@@ -197,6 +205,59 @@ export class App {
     await this.prepareMenu(ctx, handler)
   }
 
+  private prepareMenu = async (
+    ctx: AppContext,
+    handler: PrepareMenuHandler
+  ): Promise<void> => {
+    const { groupUrl, channelUrl } = this.options
+
+    const authorize = ctx.session.authorize
+    if (authorize === undefined) {
+      throw new Error(`context session authorize lost`)
+    }
+
+    const membership = ctx.session.membership
+    if (membership === undefined) {
+      throw new Error(`context session membership lost`)
+    }
+
+    const navigation = ctx.session.navigation
+    if (navigation === undefined) {
+      throw new Error(`context session navigation lost`)
+    }
+
+    if (navigation.messageId !== null) {
+      await ctx.deleteMessage(navigation.messageId)
+
+      navigation.messageId = null
+    }
+
+    //navigation.currentPage = 0
+    //navigation.totalPages = 0
+
+    if (authorize.status === 'register') {
+      await ctx.scene.enter('register')
+    } else {
+      if (!membership.checkGroup) {
+        const message = await ctx.replyWithMarkdownV2(
+          `Необходимо подписаться на [группу](${groupUrl})`,
+          keyboardMainCheckGroup()
+        )
+
+        navigation.messageId = message.message_id
+      } else if (!membership.checkChannel) {
+        const message = await ctx.replyWithMarkdownV2(
+          `Необходимо подписаться на [канал](${channelUrl})`,
+          keyboardMainCheckChannel()
+        )
+
+        navigation.messageId = message.message_id
+      } else {
+        await handler(authorize, membership, navigation)
+      }
+    }
+  }
+
   private chatJoinRequestHandler: AppContextHandler = async (ctx) => {
     const { groupChatId, channelChatId } = this.options
 
@@ -218,56 +279,6 @@ export class App {
       } else {
         logger.warn(`ChatJoinRequest: ignore unknown group: ${chatId}`)
         console.dir(ctx.chatJoinRequest, { depth: 4 })
-      }
-    }
-  }
-
-  private prepareMenu = async (
-    ctx: AppContext,
-    handler: RouteMainMenuHandler
-  ): Promise<void> => {
-    const { groupUrl, channelUrl } = this.options
-
-    const authorize = ctx.session.authorize
-    if (authorize === undefined) {
-      throw new Error(`context session authorize lost`)
-    }
-
-    const membership = ctx.session.membership
-    if (membership === undefined) {
-      throw new Error(`context session membership lost`)
-    }
-
-    const navigation = ctx.session.navigation
-    if (navigation === undefined) {
-      throw new Error(`context session navigation lost`)
-    }
-
-    if (navigation.messageId !== null) {
-      await ctx.deleteMessage(navigation.messageId)
-    }
-
-    resetNavigation(navigation)
-
-    if (authorize.status === 'register') {
-      await ctx.scene.enter('register')
-    } else {
-      if (!membership.checkGroup) {
-        const message = await ctx.replyWithMarkdownV2(
-          `Необходимо подписаться на [группу](${groupUrl})`,
-          this.markupKeyboardCheckGroup()
-        )
-
-        navigation.messageId = message.message_id
-      } else if (!membership.checkChannel) {
-        const message = await ctx.replyWithMarkdownV2(
-          `Необходимо подписаться на [канал](${channelUrl})`,
-          this.markupKeyboardCheckChannel()
-        )
-
-        navigation.messageId = message.message_id
-      } else {
-        await handler(authorize, membership, navigation)
       }
     }
   }
@@ -301,25 +312,5 @@ export class App {
       console.error(error.stack)
       console.dir(ctx, { depth: 4 })
     }
-  }
-
-  private markupKeyboardCheckGroup = () => {
-    return Markup.inlineKeyboard([
-      Markup.button.callback(`Я уже подписан на группу`, 'main-start')
-    ])
-  }
-
-  private markupKeyboardCheckChannel = () => {
-    return Markup.inlineKeyboard([
-      Markup.button.callback(`Я уже подписан на канал`, 'main-start'),
-    ])
-  }
-
-  private markupKeyboardMainMenu = () => {
-    return Markup.inlineKeyboard([
-      [Markup.button.callback('Профиль', 'main-profile')],
-      [Markup.button.callback('Фото', 'main-photo')],
-      [Markup.button.callback('Поиск', 'main-search')],
-    ])
   }
 }

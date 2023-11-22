@@ -4,9 +4,9 @@ export type UserGender = (typeof USER_GENDERS)[number]
 export type UserStatus = (typeof USER_STATUSES)[number]
 export type UserRole = (typeof USER_ROLES)[number]
 
-export interface Authorize {
+export interface User {
   id: number
-  tgFromId: string
+  tgFromId: number
   nick: string
   gender: UserGender | null
   emojiGender: string
@@ -16,9 +16,9 @@ export interface Authorize {
   lastActivityTime: Date
 }
 
-export interface User {
+export interface UserFull {
   id: number
-  tgFromId: string
+  tgFromId: number
   nick: string
   gender: UserGender | null
   emojiGender: string

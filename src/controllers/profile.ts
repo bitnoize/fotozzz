@@ -3,6 +3,7 @@ import { message } from 'telegraf/filters'
 import {
   AppOptions,
   Controller,
+  Navigation,
   AppContext,
   AppContextHandler,
   AppContextExceptionHandler
@@ -10,11 +11,9 @@ import {
 import { RedisService } from '../services/redis.js'
 import { PostgresService } from '../services/postgres.js'
 import {
-  isUserGender,
-  isUserNick,
-  isUserAbout,
-  getEmojiGender,
-  markupKeyboardProfile
+  resetNavigation,
+  keyboardMainMenu,
+  keyboardProfileMenu
 } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
 
@@ -29,9 +28,9 @@ export class ProfileController implements Controller {
 
     this.scene.enter(this.enterSceneHandler)
 
-    this.scene.action('edit-avatar', this.editAvatarHandler)
-    this.scene.action('edit-about', this.editAboutHandler)
-    this.scene.action('return-menu', this.returnMenuHandler)
+    this.scene.action('profile-change-avatar', this.changeAvatarHandler)
+    this.scene.action('profile-change-about', this.changeAboutHandler)
+    this.scene.action('profile-return-main-menu', this.returnMainMenuHandler)
 
     this.scene.leave(this.leaveSceneHandler)
 
@@ -50,46 +49,45 @@ export class ProfileController implements Controller {
       throw new Error(`context session navigation lost`)
     }
 
-    const user = await this.postgresService.getUser(authorize.id)
+    resetNavigation(navigation)
 
-    const emojiGender = getEmojiGender(user.gender)
-    const extra = markupKeyboardProfile()
+    const allowedStatuses = ['active', 'penalty']
+    if (allowedStatuses.includes(authorize.status)) {
+      const userFull = await this.postgresService.getUserFull(authorize.id)
 
-    extra.caption =
-      `${emojiGender} ${user.nick}\n` +
-      `О себе: ${user.about}`
+      const extra = keyboardProfileMenu()
 
-    const message = await ctx.sendPhoto(user.avatarTgFileId, extra)
+      const { emojiGender, nick, about } = userFull
+      extra.caption = `${emojiGender} ${nick}\nО себе: ${about}`
 
-    navigation.messageId = message.message_id
-    navigation.currentPage = 0
-    navigation.totalPages = 0
-  }
+      const message = await ctx.sendPhoto(userFull.avatarTgFileId, extra)
 
-  private editAvatarHandler = async (ctx: AppContext): Promise<void> => {
-    await ctx.scene.leave()
-    await ctx.scene.enter('profile-avatar')
-  }
+      navigation.messageId = message.message_id
+    } else {
+      await ctx.scene.leave()
 
-  private editAboutHandler = async (ctx: AppContext): Promise<void> => {
-    await ctx.scene.leave()
-    await ctx.scene.enter('profile-about')
-  }
+      const message = await ctx.replyWithMarkdownV2(
+        `Профиль доступен только для активных юзеров`,
+        keyboardMainMenu()
+      )
 
-  private returnMenuHandler = async (ctx: AppContext): Promise<void> => {
-    await ctx.scene.leave()
-
-    await ctx.replyWithMarkdownV2(
-      `Возврат в главное меню`
-    )
-  }
-
-  private leaveSceneHandler = async (ctx: AppContext): Promise<void> => {
-    const authorize = ctx.session.authorize
-    if (authorize === undefined) {
-      throw new Error(`context session authorize lost`)
+      navigation.messageId = message.message_id
     }
+  }
 
+  private changeAvatarHandler = async (ctx: AppContext): Promise<void> => {
+    await ctx.scene.leave()
+
+    await ctx.scene.enter('change-avatar')
+  }
+
+  private changeAboutHandler = async (ctx: AppContext): Promise<void> => {
+    await ctx.scene.leave()
+
+    await ctx.scene.enter('change-about')
+  }
+
+  private returnMainMenuHandler = async (ctx: AppContext): Promise<void> => {
     const navigation = ctx.session.navigation
     if (navigation === undefined) {
       throw new Error(`context session navigation lost`)
@@ -101,12 +99,33 @@ export class ProfileController implements Controller {
       navigation.messageId = null
     }
 
-    navigation.currentPage = 0
-    navigation.totalPages = 0
+    await ctx.scene.leave()
+
+    const message = await ctx.replyWithMarkdownV2(
+      `Возврат в главное меню`,
+      keyboardMainMenu()
+    )
+
+    navigation.messageId = message.message_id
+  }
+
+  private leaveSceneHandler = async (ctx: AppContext): Promise<void> => {
+    const navigation = ctx.session.navigation
+    if (navigation === undefined) {
+      throw new Error(`context session navigation lost`)
+    }
+
+    if (navigation.messageId !== null) {
+      await ctx.deleteMessage(navigation.messageId)
+
+      navigation.messageId = null
+    }
   }
 
   private unknownHandler = async (ctx: AppContext): Promise<void> => {
-    logger.debug(`ProfileScene: ignore message`)
+    await ctx.replyWithMarkdownV2(
+      `Используй кнопки в меню выше`
+    )
   }
 
   private exceptionHandler: AppContextExceptionHandler = async (error, ctx) => {
@@ -116,10 +135,11 @@ export class ProfileController implements Controller {
       console.dir(ctx, { depth: 4 })
     }
 
-    await ctx.replyWithMarkdownV2(
-      `Произошла ошибка, выход в главное меню`
-    )
-
     await ctx.scene.leave()
+
+    await ctx.replyWithMarkdownV2(
+      `Произошла ошибка, выход в главное меню`,
+      keyboardMainMenu()
+    )
   }
 }

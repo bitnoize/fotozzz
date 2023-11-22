@@ -30,4 +30,7 @@ export class RedisService {
 
     return this._instance
   }
+
+  //async getPhotoRequestLimit(photoId: number): Promise<void> {
+  //}
 }

@@ -3,6 +3,7 @@ import { message } from 'telegraf/filters'
 import {
   AppOptions,
   Controller,
+  Register,
   Navigation,
   AppContext,
   AppContextHandler,
@@ -15,9 +16,10 @@ import {
   isUserNick,
   isUserAbout,
   isRegister,
-  markupKeyboardGender
+  resetNavigation,
+  keyboardMainMenu,
+  keyboardRegisterGender
 } from '../helpers/telegram.js'
-import { USER_GENDERS } from '../constants/user.js'
 import { logger } from '../logger.js'
 
 export class RegisterController implements Controller {
@@ -29,7 +31,7 @@ export class RegisterController implements Controller {
   constructor(private readonly options: AppOptions) {
     this.scene = new Scenes.WizardScene<AppContext>(
       'register',
-      this.enterSceneHandler,
+      this.startSceneHandler,
       this.queryNickHandler,
       this.replyNickComposer(),
       this.queryGenderHandler,
@@ -38,13 +40,13 @@ export class RegisterController implements Controller {
       this.replyAvatarComposer(),
       this.queryAboutHandler,
       this.replyAboutComposer(),
-      this.leaveSceneHandler
+      this.completeSceneHandler
     )
 
     this.scene.use(Scenes.WizardScene.catch(this.exceptionHandler))
   }
 
-  private enterSceneHandler: AppContextHandler = async (ctx, next) => {
+  private startSceneHandler: AppContextHandler = async (ctx, next) => {
     const authorize = ctx.session.authorize
     if (authorize === undefined) {
       throw new Error(`context session authorize lost`)
@@ -55,25 +57,28 @@ export class RegisterController implements Controller {
       throw new Error(`context session navigation lost`)
     }
 
-    if (authorize.status !== 'register') {
-      throw new Error(`authorize status not allowed to enter scene`)
-    }
-
     resetNavigation(navigation)
 
     ctx.scene.session.register = {} as Partial<Register>
 
-    await ctx.replyWithMarkdownV2(
-      `Ответь на несколько вопросов, чтобы завершить регистрацию`
-    )
+    if (authorize.status === 'register') {
+      ctx.wizard.next()
 
-    ctx.wizard.next()
+      if (typeof ctx.wizard.step !== 'function') {
+        throw new Error(`context wizard step lost`)
+      }
 
-    if (typeof ctx.wizard.step !== 'function') {
-      throw new Error(`context wizard step lost`)
+      return ctx.wizard.step(ctx, next)
+    } else {
+      await ctx.scene.leave()
+
+      const message = await ctx.replyWithMarkdownV2(
+        `Регистриация уже пройдена`,
+        keyboardMainMenu()
+      )
+
+      navigation.messageId = message.message_id
     }
-
-    return ctx.wizard.step(ctx, next)
   }
 
   private queryNickHandler: AppContextHandler = async (ctx) => {
@@ -137,7 +142,7 @@ export class RegisterController implements Controller {
   private queryGenderHandler: AppContextHandler = async (ctx) => {
     await ctx.replyWithMarkdownV2(
       'Укажи пол',
-      markupKeyboardGender()
+      keyboardRegisterGender()
     )
 
     ctx.wizard.next()
@@ -146,11 +151,7 @@ export class RegisterController implements Controller {
   private replyGenderComposer = (): Composer<AppContext> => {
     const handler = new Composer<AppContext>()
 
-    for (gender of USER_GENDERS) {
-      handler.action(`register-gender-${gener}`, this.replyGenderActionHandler)
-    }
-
-    handler.action(USER_GENDERS, this.replyGenderActionHandler)
+    handler.action(/^register-gender-(\w+)$/, this.replyGenderActionHandler)
     handler.use(this.replyGenderUnknownHandler)
 
     return handler
@@ -162,7 +163,7 @@ export class RegisterController implements Controller {
       throw new Error(`context scene session register lost`)
     }
 
-    const userGender = ctx.match.input
+    const userGender = ctx.match[1]
 
     if (isUserGender(userGender)) {
       register.gender = userGender
@@ -183,13 +184,13 @@ export class RegisterController implements Controller {
 
   private replyGenderUnknownHandler: AppContextHandler = async (ctx) => {
     await ctx.replyWithMarkdownV2(
-      `Используй кнопки в сообщении`
+      `Используй кнопки в меню`
     )
   }
 
   private queryAvatarHandler: AppContextHandler = async (ctx) => {
     await ctx.replyWithMarkdownV2(
-    `Загрузи аватар`
+      `Загрузи аватар`
     )
 
     ctx.wizard.next()
@@ -293,7 +294,7 @@ export class RegisterController implements Controller {
     )
   }
 
-  private leaveSceneHandler: AppContextHandler = async (ctx) => {
+  private completeSceneHandler: AppContextHandler = async (ctx) => {
     const authorize = ctx.session.authorize
     if (authorize === undefined) {
       throw new Error(`context session authorize lost`)
@@ -303,15 +304,6 @@ export class RegisterController implements Controller {
     if (navigation === undefined) {
       throw new Error(`context session navigation lost`)
     }
-
-    if (navigation.messageId !== null) {
-      await ctx.deleteMessage(navigation.messageId)
-
-      navigation.messageId = null
-    }
-
-    navigation.currentPage = 0
-    navigation.totalPages = 0
 
     const register = ctx.scene.session.register
     if (register === undefined) {
@@ -331,11 +323,22 @@ export class RegisterController implements Controller {
       ctx.from
     )
 
-    await ctx.replyWithMarkdownV2(
-      `Регистрация окончена, спасибо`
-    )
+    if (navigation.messageId !== null) {
+      await ctx.deleteMessage(navigation.messageId)
+
+      navigation.messageId = null
+    }
 
     await ctx.scene.leave()
+
+    const { nick, emojiGender } = authorize
+
+    const message = await ctx.replyWithMarkdownV2(
+      `Бот приветствует тебя, ${emojiGender} *${nick}*\n`,
+      keyboardMainMenu()
+    )
+
+    navigation.messageId = message.message_id
   }
 
   private exceptionHandler: AppContextExceptionHandler = async (error, ctx) => {
@@ -345,10 +348,11 @@ export class RegisterController implements Controller {
       console.dir(ctx, { depth: 4 })
     }
 
-    await ctx.replyWithMarkdownV2(
-      `Произошла ошибка, выход в главное меню`
-    )
-
     await ctx.scene.leave()
+
+    await ctx.replyWithMarkdownV2(
+      `Произошла ошибка, возврат в главное меню`,
+      keyboardMainMenu()
+    )
   }
 }

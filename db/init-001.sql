@@ -82,7 +82,7 @@ CREATE TABLE topics (
   create_time           TIMESTAMPTZ DEFAULT NOW(),
 
   PRIMARY KEY(id),
-  UNIQUE(tg_chat_id, tg_thread_id),
+  UNIQUE(tg_chat_id, tg_thread_id)
 );
 
 GRANT SELECT, INSERT, UPDATE ON topics TO fotozzz_app;
@@ -281,20 +281,20 @@ CREATE INDEX comment_logs_action_key ON comment_logs (action);
 INSERT INTO topics (
   tg_chat_id, tg_thread_id, name, status, description
 )
-VALUES (-1002066427722, 1, 'Анонсы', 'available', NULL)
+VALUES (-1002066427722, 1, 'Анонсы', 'available', NULL);
 
 INSERT INTO topics (
   tg_chat_id, tg_thread_id, name, status, description
 )
-VALUES (-1002066427722, 7, 'Портрет', 'available', NULL)
+VALUES (-1002066427722, 7, 'Портрет', 'available', NULL);
 
 INSERT INTO topics (
   tg_chat_id, tg_thread_id, name, status, description
 )
-VALUES (-1002066427722, 8, 'Пейзаж', 'available', NULL)
+VALUES (-1002066427722, 8, 'Пейзаж', 'available', NULL);
 
 INSERT INTO topics (
   tg_chat_id, tg_thread_id, name, status, description
 )
-VALUES (-1002066427722, 10, 'Натюрморт', 'available', NULL)
+VALUES (-1002066427722, 10, 'Натюрморт', 'available', NULL);
 

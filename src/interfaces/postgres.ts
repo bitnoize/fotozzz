@@ -16,9 +16,9 @@ export interface RowCount {
   count: number
 }
 
-export interface RowAuthorize {
+export interface RowUser {
   id: number
-  tg_file_id: string
+  tg_from_id: number
   nick: string | null
   gender: UserGender | null
   status: UserStatus
@@ -29,9 +29,9 @@ export interface RowAuthorize {
   isChannelMember: boolean
 }
 
-export interface RowUser {
+export interface RowUserFull {
   id: number
-  tg_from_id: string
+  tg_from_id: number
   nick: string | null
   gender: UserGender | null
   status: UserStatus
@@ -44,7 +44,8 @@ export interface RowUser {
 
 export interface RowTopic {
   id: number
-  tg_id: string
+  tg_chat_id: number
+  tg_thread_id: number
   name: string
   status: TopicStatus
   description: string
@@ -55,8 +56,12 @@ export interface RowPhoto {
   id: number
   user_id: number
   topic_id: number
-  tg_id: string
+  group_tg_chat_id: number
+  group_tg_message_id: number
+  channel_tg_chat_id: number
+  channel_tg_message_id: number
   tg_file_id: string
+  description: string
   status: PhotoStatus
   create_time: Date
 }
@@ -66,7 +71,6 @@ export interface RowRate {
   user_id: number
   topic_id: number
   photo_id: number
-  tg_id: string
   value: RateValue
   create_time: Date
 }
@@ -76,7 +80,8 @@ export interface RowComment {
   user_id: number
   topic_id: number
   photo_id: number
-  tg_id: string
+  channel_tg_chat_id: number
+  channel_tg_message_id: number
   status: CommentStatus
   text: string
   create_time: Date

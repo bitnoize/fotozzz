@@ -7,7 +7,6 @@ export interface Rate {
   userId: number
   topicId: number
   photoId: number
-  tgId: string
   value: RateValue
   createTime: Date
 }

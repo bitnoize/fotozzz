@@ -7,7 +7,8 @@ export interface Comment {
   userId: number
   topicId: number
   photoId: number
-  tgId: string
+  channelTgChatId: number
+  channelTgMessageId: number
   status: CommentStatus
   text: string
   createTime: Date

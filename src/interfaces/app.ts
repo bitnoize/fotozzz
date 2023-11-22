@@ -1,5 +1,5 @@
 import { Context, Scenes } from 'telegraf'
-import { Authorize } from './user.js'
+import { UserGender, User } from './user.js'
 
 export interface AppOptions {
   botToken: string
@@ -12,14 +12,18 @@ export interface AppOptions {
   channelUrl: string
 }
 
-export interface Controller {
-  scene: Scenes.BaseScene<AppContext> | Scenes.WizardScene<AppContext>
-}
-
 export interface Register {
   nick: string
   gender: UserGender
   avatarTgFileId: string
+  about: string
+}
+
+export interface ChangeAvatar {
+  avatarTgFileId: string
+}
+
+export interface ChangeAbout {
   about: string
 }
 
@@ -31,6 +35,8 @@ export interface NewPhoto {
 
 export interface AppWizardSession extends Scenes.WizardSessionData {
   register?: Partial<Register>
+  changeAvatar?: Partial<ChangeAvatar>
+  changeAbout?: Partial<ChangeAbout>
   newPhoto?: Partial<NewPhoto>
 }
 
@@ -46,9 +52,9 @@ export interface Membership {
 }
 
 export interface AppSession extends Scenes.WizardSession<AppWizardSession> {
-  authorize?: Authorize
-  navigation?: NavigationMenu | NavigationSlider
+  authorize?: User
   membership?: Membership
+  navigation?: Navigation
 }
 
 export interface AppContext extends Context {
@@ -68,7 +74,11 @@ export type AppContextExceptionHandler = (
 ) => Promise<unknown | void>
 
 export type PrepareMenuHandler = (
-  authorize: Authorize,
+  authorize: User,
   membership: Membership,
   navigation: Navigation
 ) => Promise<void>
+
+export interface Controller {
+  scene: Scenes.BaseScene<AppContext> | Scenes.WizardScene<AppContext>
+}

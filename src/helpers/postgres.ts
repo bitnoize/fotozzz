@@ -1,14 +1,14 @@
 import {
   RowId,
   RowCount,
-  RowAuthorize,
   RowUser,
+  RowUserFull,
   RowTopic,
   RowPhoto,
   RowRate,
   RowComment
 } from '../interfaces/postgres.js'
-import { Authorize, User } from '../interfaces/user.js'
+import { UserGender, User, UserFull } from '../interfaces/user.js'
 import { Topic } from '../interfaces/topic.js'
 import { Photo } from '../interfaces/photo.js'
 import { Rate } from '../interfaces/rate.js'
@@ -43,51 +43,6 @@ export const isRowCount = (
   )
 }
 
-export const isRowAuthorize = (
-  rowAuthorize: unknown
-): rowAuthorize is RowAuthorize => {
-  return (
-    rowAuthorize != null &&
-    typeof rowAuthorize === 'object' &&
-    'id' in rowAuthorize &&
-    typeof rowAuthorize.id === 'number' &&
-    'tg_from_id' in rowAuthorize &&
-    typeof rowAuthorize.tg_from_id === 'number' &&
-    'nick' in rowAuthorize &&
-    (rowAuthorize.nick === null ||
-      typeof rowAuthorize.nick === 'string') &&
-    'gender' in rowAuthorize &&
-    (rowAuthorize.gender === null ||
-      typeof rowAuthorize.gender === 'string') &&
-    'status' in rowAuthorize &&
-    typeof rowAuthorize.status === 'string' &&
-    'role' in rowAuthorize &&
-    typeof rowAuthorize.role === 'string' &&
-    'register_time' in rowAuthorize &&
-    typeof rowAuthorize.register_time === 'object' &&
-    rowAuthorize.register_time instanceof Date &&
-    'last_activity_time' in rowAuthorize &&
-    typeof rowAuthorize.last_activity_time === 'object' &&
-    rowAuthorize.last_activity_time instanceof Date
-  )
-}
-
-export const buildAuthorize = (rowAuthorize: RowAuthorize): Authorize => {
-  const authorize: Authorize = {
-    id: rowAuthorize.id,
-    tgFromId: rowAuthorize.tg_from_id,
-    nick: rowAuthorize.nick ?? USER_NICK_UNKNOWN,
-    gender: rowAuthorize.gender,
-    emojiGender: getEmojiGender(rowAuthorize.gender),
-    status: rowAuthorize.status,
-    role: rowAuthorize.role,
-    registerTime: rowAuthorize.register_time,
-    lastActivityTime: rowAuthorize.last_activity_time
-  }
-
-  return authorize
-}
-
 export const isRowUser = (
   rowUser: unknown
 ): rowUser is RowUser => {
@@ -108,12 +63,6 @@ export const isRowUser = (
     typeof rowUser.status === 'string' &&
     'role' in rowUser &&
     typeof rowUser.role === 'string' &&
-    'avatar_tg_file_id' in rowUser &&
-    (rowUser.avatar_tg_file_id === null ||
-      typeof rowUser.avatar_tg_file_id === 'string') &&
-    'about' in rowUser &&
-    (rowUser.about === null ||
-      typeof rowUser.about === 'string') &&
     'register_time' in rowUser &&
     typeof rowUser.register_time === 'object' &&
     rowUser.register_time instanceof Date &&
@@ -123,28 +72,79 @@ export const isRowUser = (
   )
 }
 
-export const buildUser = (
-  rowUser: RowUser,
-  rowPhotosCount: RowCount,
-  rowCommentsCount: RowCount
-): User => {
+export const buildUser = (rowUser: RowUser): User => {
   const user: User = {
     id: rowUser.id,
     tgFromId: rowUser.tg_from_id,
     nick: rowUser.nick ?? USER_NICK_UNKNOWN,
     gender: rowUser.gender,
-    emojiGender: getEmojiGender(rowAuthorize.gender),
+    emojiGender: getEmojiGender(rowUser.gender),
     status: rowUser.status,
     role: rowUser.role,
-    avatarTgFileId: rowUser.avatar_tg_file_id ?? USER_AVATAR_UNKNOWN,
-    about: rowUser.about ?? '',
     registerTime: rowUser.register_time,
-    lastActivityTime: rowUser.last_activity_time,
-    photosTotal: rowPhotosCount.count,
-    commentsTotal: rowCommentsCount.count,
+    lastActivityTime: rowUser.last_activity_time
   }
 
   return user
+}
+
+export const isRowUserFull = (
+  rowUserFull: unknown
+): rowUserFull is RowUserFull => {
+  return (
+    rowUserFull != null &&
+    typeof rowUserFull === 'object' &&
+    'id' in rowUserFull &&
+    typeof rowUserFull.id === 'number' &&
+    'tg_from_id' in rowUserFull &&
+    typeof rowUserFull.tg_from_id === 'number' &&
+    'nick' in rowUserFull &&
+    (rowUserFull.nick === null ||
+      typeof rowUserFull.nick === 'string') &&
+    'gender' in rowUserFull &&
+    (rowUserFull.gender === null ||
+      typeof rowUserFull.gender === 'string') &&
+    'status' in rowUserFull &&
+    typeof rowUserFull.status === 'string' &&
+    'role' in rowUserFull &&
+    typeof rowUserFull.role === 'string' &&
+    'avatar_tg_file_id' in rowUserFull &&
+    (rowUserFull.avatar_tg_file_id === null ||
+      typeof rowUserFull.avatar_tg_file_id === 'string') &&
+    'about' in rowUserFull &&
+    (rowUserFull.about === null ||
+      typeof rowUserFull.about === 'string') &&
+    'register_time' in rowUserFull &&
+    typeof rowUserFull.register_time === 'object' &&
+    rowUserFull.register_time instanceof Date &&
+    'last_activity_time' in rowUserFull &&
+    typeof rowUserFull.last_activity_time === 'object' &&
+    rowUserFull.last_activity_time instanceof Date
+  )
+}
+
+export const buildUserFull = (
+  rowUserFull: RowUserFull,
+  rowPhotosCount: RowCount,
+  rowCommentsCount: RowCount
+): UserFull => {
+  const userFull: UserFull = {
+    id: rowUserFull.id,
+    tgFromId: rowUserFull.tg_from_id,
+    nick: rowUserFull.nick ?? USER_NICK_UNKNOWN,
+    gender: rowUserFull.gender,
+    emojiGender: getEmojiGender(rowUserFull.gender),
+    status: rowUserFull.status,
+    role: rowUserFull.role,
+    avatarTgFileId: rowUserFull.avatar_tg_file_id ?? USER_AVATAR_UNKNOWN,
+    about: rowUserFull.about ?? '',
+    registerTime: rowUserFull.register_time,
+    lastActivityTime: rowUserFull.last_activity_time,
+    photosTotal: rowPhotosCount.count,
+    commentsTotal: rowCommentsCount.count
+  }
+
+  return userFull
 }
 
 export const isRowTopic = (
