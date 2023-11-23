@@ -7,15 +7,126 @@ import {
   ChangeAvatar,
   ChangeAbout,
   NewPhoto,
+  Membership,
   Navigation
 } from '../interfaces/app.js'
-import { UserGender } from '../interfaces/user.js'
-import { USER_NICK_REGEXP, USER_GENDERS } from '../constants/user.js'
+import { UserGender, User, UserFull } from '../interfaces/user.js'
+import {
+  USER_NICK_REGEXP,
+  USER_GENDERS,
+  USER_AVATAR_UNKNOWN
+} from '../constants/user.js'
 
-export const resetNavigation = (navigation: Navigation) => {
-  navigation.messageId = null
-  navigation.currentPage = 0
-  navigation.totalPages = 0
+export interface PhotoSize {
+  file_id: string
+}
+
+export const wizardNextStep = (
+  ctx: AppContext,
+  next: () => Promise<void>
+): unknown => {
+  if (typeof ctx.wizard.step !== 'function') {
+    throw new Error(`context wizard step lost`)
+  }
+
+  return ctx.wizard.step(ctx, next)
+}
+
+export const blankNavigation = (): Navigation => {
+  const navigation: Navigation = {
+    messageId: null,
+    currentPage: 0,
+    totalPages: 0
+  }
+
+  return navigation
+}
+
+export const blankMembership = (): Membership => {
+  const membership: Membership = {
+    checkGroup: null,
+    checkChannel: null
+  }
+
+  return membership
+}
+
+export const initSessionAuthorize = (ctx: AppContext, user: User) => {
+  ctx.session.authorize = user
+}
+
+export const sureSessionAuthorize = (ctx: AppContext): User => {
+  const authorize = ctx.session.authorize
+  if (authorize === undefined) {
+    throw new Error(`context session authorize lost`)
+  }
+
+  return authorize
+}
+
+export const initSessionMembership = (ctx: AppContext, membership: Membership) => {
+  ctx.session.membership = membership
+}
+
+export const sureSessionMembership = (ctx: AppContext): Membership => {
+  const membership = ctx.session.membership
+  if (membership === undefined) {
+    throw new Error(`context session membership lost`)
+  }
+
+  return membership
+}
+
+export const initSessionNavigation = (ctx: AppContext, navigation: Navigation) => {
+  ctx.session.navigation = navigation
+}
+
+export const sureSessionNavigation = (ctx: AppContext): Navigation => {
+  const navigation = ctx.session.navigation
+  if (navigation === undefined) {
+    throw new Error(`context session navigation lost`)
+  }
+
+  return navigation
+}
+
+export const initSceneSessionRegister = (ctx: AppContext) => {
+  ctx.scene.session.register = {} as Partial<Register>
+}
+
+export const sureSceneSessionRegister = (ctx: AppContext): Partial<Register> => {
+  const register = ctx.scene.session.register
+  if (register === undefined) {
+    throw new Error(`context scene session register lost`)
+  }
+
+  return register
+}
+
+export const initSceneSessionChangeAvatar = (ctx: AppContext) => {
+  ctx.scene.session.changeAvatar = {} as Partial<ChangeAvatar>
+}
+
+export const sureSceneSessionChangeAvatar = (ctx: AppContext): Partial<ChangeAvatar> => {
+  const changeAvatar = ctx.scene.session.changeAvatar
+  if (changeAvatar === undefined) {
+    throw new Error(`context scene session changeAvatar lost`)
+  }
+
+  return changeAvatar
+}
+
+export const initSceneSessionChangeAbout = (ctx: AppContext) => {
+  ctx.scene.session.changeAbout = {} as Partial<ChangeAbout>
+}
+
+export const sureSceneSessionChangeAbout = (ctx: AppContext): Partial<ChangeAbout> => {
+  const changeAbout = ctx.scene.session.changeAbout
+  if (changeAbout === undefined) {
+    throw new Error(`context scene session changeAbout lost`)
+  }
+
+  return changeAbout
 }
 
 export const isUserGender = (userGender: unknown): userGender is UserGender => {
@@ -27,12 +138,10 @@ export const isUserGender = (userGender: unknown): userGender is UserGender => {
 }
 
 export const isUserNick = (userNick: unknown): userNick is string => {
-  const regExp = /^[a-z0-9_]{4,20}$/i
-
   return (
     userNick != null &&
     typeof userNick === 'string' &&
-    regExp.test(userNick)
+    USER_NICK_REGEXP.test(userNick)
   )
 }
 
@@ -42,6 +151,16 @@ export const isUserAbout = (userAbout: unknown): userAbout is string => {
     typeof userAbout === 'string' &&
     userAbout.length >= 3 &&
     userAbout.length <= 300
+  )
+}
+
+export const isPhotoSize = (photoSize: unknown): photoSize is PhotoSize => {
+  return (
+    photoSize != null &&
+    typeof photoSize === 'object' &&
+    'file_id' in photoSize &&
+    photoSize.file_id != null &&
+    typeof photoSize.file_id === 'string'
   )
 }
 
@@ -114,9 +233,295 @@ export const keyboardProfileMenu = () => {
   return Markup.inlineKeyboard([
     [Markup.button.callback('Редактировать аватар', 'profile-change-avatar')],
     [Markup.button.callback('Редактировать о себе', 'profile-change-about')],
-    [Markup.button.callback('Вернуться в меню', 'profile-return-main-menu')]
+    [Markup.button.callback('Вернуться в меню', 'profile-return-main')]
   ])
 }
+
+export const keyboardChangeAvatarCancel = () => {
+  return Markup.inlineKeyboard([
+    Markup.button.callback('Отмена', 'change-avatar-back')
+  ])
+}
+
+export const keyboardChangeAboutCancel = () => {
+  return Markup.inlineKeyboard([
+    Markup.button.callback('Отмена', 'change-about-back')
+  ])
+}
+
+export const keyboardPhotoMenu = () => {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback('Предыдущее', 'photo-prev'),
+      Markup.button.callback('Перейти', 'photo-goto'),
+      Markup.button.callback('Следующее', 'photo-next')
+    ],
+    [Markup.button.callback('Удалить', 'photo-delete')],
+    [Markup.button.callback('В главное меню', 'photo-return-main')]
+  ])
+}
+
+export const keyboardNewPhotoCancel = () => {
+  return Markup.inlineKeyboard([
+    Markup.button.callback('Отмена', 'new-photo-cancel')
+  ])
+}
+
+export const removeLastMessage = async (
+  ctx: AppContext,
+  navigation: Navigation
+): Promise<void> => {
+  if (navigation.messageId !== null) {
+    await ctx.deleteMessage(navigation.messageId)
+
+    navigation.messageId = null
+  }
+}
+
+export const replyMainCheckGroup = async (
+  ctx: AppContext,
+  authorize: User,
+  navigation: Navigation,
+  groupUrl: string
+): Promise<void> => {
+  removeLastMessage(ctx, navigation)
+
+  const message = await ctx.replyWithMarkdownV2(
+    `Необходимо подписаться на [группу](${groupUrl})`,
+    keyboardMainCheckGroup()
+  )
+
+  navigation.messageId = message.message_id
+}
+
+export const replyMainCheckChannel = async (
+  ctx: AppContext,
+  authorize: User,
+  navigation: Navigation,
+  channelUrl: string
+): Promise<void> => {
+  removeLastMessage(ctx, navigation)
+
+  const message = await ctx.replyWithMarkdownV2(
+    `Необходимо подписаться на [канал](${channelUrl})`,
+    keyboardMainCheckChannel()
+  )
+
+  navigation.messageId = message.message_id
+}
+
+export const replyMainMenu = async (
+  ctx: AppContext,
+  authorize: User,
+  navigation: Navigation
+): Promise<void> => {
+  removeLastMessage(ctx, navigation)
+
+  const { nick, emojiGender } = authorize
+
+  const message = await ctx.replyWithMarkdownV2(
+    `Бот приветствует тебя, ${emojiGender} *${nick}*\n`,
+    keyboardMainMenu()
+  )
+
+  navigation.messageId = message.message_id
+}
+
+export const replyMainError = async (ctx: AppContext): Promise<void> => {
+  await ctx.replyWithMarkdownV2(
+    `Произошла непредвиденная ошибка, возврат в главное меню`,
+  )
+}
+
+export const replyRegisterNick = async (
+  ctx: AppContext,
+  authorize: User,
+  navigation: Navigation
+): Promise<void> => {
+  removeLastMessage(ctx, navigation)
+
+  const message = await ctx.replyWithMarkdownV2(
+    `Выбери ник`
+  )
+
+  navigation.messageId = message.message_id
+}
+
+export const replyRegisterNickUsed = async (
+  ctx: AppContext,
+  authorize: User,
+  navigation: Navigation
+): Promise<void> => {
+  removeLastMessage(ctx, navigation)
+
+  const message = await ctx.replyWithMarkdownV2(
+    `Этот ник уже используется, выбери другой`
+  )
+
+  navigation.messageId = message.message_id
+}
+
+export const replyRegisterNickWrong = async (
+  ctx: AppContext,
+  authorize: User,
+  navigation: Navigation
+): Promise<void> => {
+  removeLastMessage(ctx, navigation)
+
+  const message = await ctx.replyWithMarkdownV2(
+    `Некорректный ввод, попробуй еще раз`
+  )
+
+  navigation.messageId = message.message_id
+}
+
+export const replyRegisterGender = async (
+  ctx: AppContext,
+  authorize: User,
+  navigation: Navigation
+): Promise<void> => {
+  removeLastMessage(ctx, navigation)
+
+  const message = await ctx.replyWithMarkdownV2(
+    `Укажи пол`,
+    keyboardRegisterGender()
+  )
+
+  navigation.messageId = message.message_id
+}
+
+export const replyRegisterAvatar = async (
+  ctx: AppContext,
+  authorize: User,
+  navigation: Navigation
+): Promise<void> => {
+  removeLastMessage(ctx, navigation)
+
+  const message = await ctx.replyWithMarkdownV2(
+    `Загрузи аватар`
+  )
+
+  navigation.messageId = message.message_id
+}
+
+export const replyRegisterAbout = async (
+  ctx: AppContext,
+  authorize: User,
+  navigation: Navigation
+): Promise<void> => {
+  removeLastMessage(ctx, navigation)
+
+  const message = await ctx.replyWithMarkdownV2(
+    `Расскажи о себе`
+  )
+
+  navigation.messageId = message.message_id
+}
+
+export const replyRegisterAboutWrong = async (
+  ctx: AppContext,
+  authorize: User,
+  navigation: Navigation
+): Promise<void> => {
+  removeLastMessage(ctx, navigation)
+
+  const message = await ctx.replyWithMarkdownV2(
+    `Некорректный ввод, попробуй еще раз`
+  )
+
+  navigation.messageId = message.message_id
+}
+
+export const replyProfileMenu = async (
+  ctx: AppContext,
+  authorize: User,
+  navigation: Navigation,
+  userFull: UserFull,
+): Promise<void> => {
+  removeLastMessage(ctx, navigation)
+
+  const extra = keyboardProfileMenu()
+
+  const { emojiGender, nick, about } = userFull
+  extra.caption = `${emojiGender} ${nick}\nО себе: ${about}`
+
+  const message = await ctx.sendPhoto(userFull.avatarTgFileId, extra)
+
+  navigation.messageId = message.message_id
+}
+
+export const replyChangeAvatar = async (
+  ctx: AppContext,
+  authorize: User,
+  navigation: Navigation
+): Promise<void> => {
+  removeLastMessage(ctx, navigation)
+
+  const message = await ctx.replyWithMarkdownV2(
+    `Загрузи новый аватар`,
+    keyboardChangeAvatarCancel()
+  )
+
+  navigation.messageId = message.message_id
+}
+
+export const replyChangeAbout = async (
+  ctx: AppContext,
+  authorize: User,
+  navigation: Navigation
+): Promise<void> => {
+  removeLastMessage(ctx, navigation)
+
+  const message = await ctx.replyWithMarkdownV2(
+    `Расскажи о себе`,
+    keyboardChangeAboutCancel()
+  )
+
+  navigation.messageId = message.message_id
+}
+
+export const replyChangeAboutWrong = async (
+  ctx: AppContext,
+  authorize: User,
+  navigation: Navigation
+): Promise<void> => {
+  removeLastMessage(ctx, navigation)
+
+  const message = await ctx.replyWithMarkdownV2(
+    `Некорректный ввод, попробуй еще раз`,
+    keyboardChangeAboutCancel()
+  )
+
+  navigation.messageId = message.message_id
+}
+
+export const replyPhotoMenu = async (
+  ctx: AppContext,
+  authorize: User,
+  navigation: Navigation
+): Promise<void> => {
+  removeLastMessage(ctx, navigation)
+
+  const extra = keyboardPhotoMenu()
+
+  extra.caption = `Тест тест тест`
+
+  const message = await ctx.sendPhoto(USER_AVATAR_UNKNOWN, extra)
+
+  navigation.messageId = message.message_id
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 export const keyboardChangeAvatarConfirm = () => {
   return Markup.inlineKeyboard([
@@ -133,43 +538,3 @@ export const keyboardChangeAboutConfirm = () => {
 }
 
 
-
-
-
-
-
-
-
-/*
-export const markupKeyboardGender = () => {
-  return Markup.inlineKeyboard([
-    Markup.button.callback(`Мужской`, 'male'),
-    Markup.button.callback(`Женский`, 'female'),
-    Markup.button.callback(`Пара`, 'couple'),
-  ])
-}
-
-export const markupKeyboardProfile = () => {
-  return Markup.inlineKeyboard([
-    Markup.button.callback('Редактировать аватар', 'edit-avatar'),
-    Markup.button.callback('Редактировать о себе', 'edit-about'),
-    Markup.button.callback('Вернуться в меню', 'back-main'),
-  ])
-}
-
-export const markupKeyboardPhoto = () => {
-  return Markup.inlineKeyboard([
-    [
-      Markup.button.callback('Предыдущее', 'nav-prev'),
-      Markup.button.callback('Просмотр', 'view'),
-      Markup.button.callback('Следующее', 'nav-next')
-    ],
-    [
-      Markup.button.callback('Удалить', 'delete')
-    ],
-    [
-      Markup.button.callback('В главное меню', 'return-menu')
-    ]
-  ])
-}
-*/

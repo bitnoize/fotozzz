@@ -9,7 +9,7 @@ import {
   AppContext,
   AppSession,
   AppContextHandler,
-  PrepareMenuHandler
+  PrepareMainHandler
 } from './interfaces/app.js'
 import { RedisService } from './services/redis.js'
 import { PostgresService } from './services/postgres.js'
@@ -17,10 +17,19 @@ import { RegisterController } from './controllers/register.js'
 import { ProfileController } from './controllers/profile.js'
 import { ChangeAvatarController } from './controllers/change-avatar.js'
 import { ChangeAboutController } from './controllers/change-about.js'
+//import { PhotoController } from './controllers/photo.js'
 import {
-  keyboardMainCheckGroup,
-  keyboardMainCheckChannel,
-  keyboardMainMenu
+  blankNavigation,
+  blankMembership,
+  initSessionAuthorize,
+  sureSessionAuthorize,
+  initSessionNavigation,
+  sureSessionNavigation,
+  initSessionMembership,
+  sureSessionMembership,
+  replyMainCheckGroup,
+  replyMainCheckChannel,
+  replyMainMenu,
 } from './helpers/telegram.js'
 import { logger } from './logger.js'
 
@@ -59,6 +68,7 @@ export class App {
     controllers.push(new ProfileController(this.options))
     controllers.push(new ChangeAvatarController(this.options))
     controllers.push(new ChangeAboutController(this.options))
+    //controllers.push(new PhotoController(this.options))
 
     const stage = new Scenes.Stage<AppContext>(
       controllers.map((controller) => controller.scene)
@@ -67,18 +77,18 @@ export class App {
     this.bot.use(stage.middleware())
 
     this.bot.use(this.authorizeHandler)
-    this.bot.use(this.membershipHandler)
     this.bot.use(this.navigationHandler)
+    this.bot.use(this.membershipHandler)
 
     this.bot.command('start', this.startMenuHandler)
     this.bot.command('profile', this.profileMenuHandler)
-    //this.bot.command('photo', this.photoMenuHandler)
-    //this.bot.command('search', this.searchMenuHandler)
+    this.bot.command('photo', this.photoMenuHandler)
+    this.bot.command('search', this.searchMenuHandler)
 
     this.bot.action('main-start', this.startMenuHandler)
     this.bot.action('main-profile', this.profileMenuHandler)
-    //this.bot.action('main-photo', this.profileMenuHandler)
-    //this.bot.action('main-search', this.searchMenuHandler)
+    this.bot.action('main-photo', this.photoMenuHandler)
+    this.bot.action('main-search', this.searchMenuHandler)
 
     this.bot.on('chat_join_request', this.chatJoinRequestHandler)
 
@@ -103,17 +113,14 @@ export class App {
       const { id: fromId, is_bot: fromIsBot } = ctx.from
 
       //if (!fromIsBot) {
-        const authorize = await this.postgresService.authorizeUser(
-          fromId,
-          ctx.from
-        )
+        const user = await this.postgresService.authorizeUser(fromId, ctx.from)
 
-        if (authorize.status !== 'banned') {
-          ctx.session.authorize = authorize
+        if (user.status !== 'banned') {
+          initSessionAuthorize(ctx, user)
 
           await next()
         } else {
-          logger.info(`Authorize: ignore banned user ${authorize.id}`)
+          logger.info(`Authorize: ignore banned user ${user.id}`)
         }
       //} else {
       //  logger.info(`Authorize: ignore bot ${fromId}`)
@@ -124,13 +131,22 @@ export class App {
     }
   }
 
+  private navigationHandler: AppContextHandler = async (ctx, next) => {
+    if (ctx.session.navigation === undefined) {
+      const navigation = blankNavigation()
+
+      initSessionNavigation(ctx, navigation)
+    }
+
+    console.dir(ctx.session.navigation)
+
+    await next()
+  }
+
   private membershipHandler: AppContextHandler = async (ctx, next) => {
     const { groupChatId, channelChatId } = this.options
 
-    const membership: Membership = {
-      checkGroup: null,
-      checkChannel: null
-    }
+    const membership = blankMembership()
 
     if (ctx.from !== undefined && ctx.chat !== undefined) {
       const { id: fromId } = ctx.from
@@ -149,82 +165,44 @@ export class App {
       }
     }
 
-    ctx.session.membership = membership
-
-    await next()
-  }
-
-  private navigationHandler: AppContextHandler = async (ctx, next) => {
-    if (ctx.session.navigation === undefined) {
-      const navigation: Navigation = {
-        messageId: null,
-        currentPage: 0,
-        totalPages: 0
-      }
-
-      ctx.session.navigation = navigation
-    }
-
-    console.dir(ctx.session.navigation)
+    initSessionMembership(ctx, membership)
 
     await next()
   }
 
   private startMenuHandler: AppContextHandler = async (ctx) => {
-    const handler: PrepareMenuHandler = async (
-      authorize,
-      membership,
-      navigation
-    ) => {
-      const { nick, emojiGender } = authorize
-
-      const message = await ctx.replyWithMarkdownV2(
-        `Бот приветствует тебя, ${emojiGender} *${nick}*\n`,
-        keyboardMainMenu()
-      )
-
-      navigation.messageId = message.message_id
-    }
-
-    await this.prepareMenu(ctx, handler)
+    await this.prepareMain(ctx, async (authorize, navigation) => {
+      await replyMainMenu(ctx, authorize, navigation)
+    })
   }
 
   private profileMenuHandler: AppContextHandler = async (ctx) => {
-    const handler: PrepareMenuHandler = async () => {
+    await this.prepareMain(ctx, async () => {
       await ctx.scene.enter('profile')
-    }
-
-    await this.prepareMenu(ctx, handler)
+    })
   }
 
   private photoMenuHandler: AppContextHandler = async (ctx) => {
-    const handler: PrepareMenuHandler = async () => {
+    await this.prepareMain(ctx, async () => {
       await ctx.scene.enter('photo')
-    }
-
-    await this.prepareMenu(ctx, handler)
+    })
   }
 
-  private prepareMenu = async (
+  private searchMenuHandler: AppContextHandler = async (ctx) => {
+    await this.prepareMain(ctx, async () => {
+      await ctx.scene.enter('search')
+    })
+  }
+
+  private prepareMain = async (
     ctx: AppContext,
-    handler: PrepareMenuHandler
+    handler: PrepareMainHandler
   ): Promise<void> => {
     const { groupUrl, channelUrl } = this.options
 
-    const authorize = ctx.session.authorize
-    if (authorize === undefined) {
-      throw new Error(`context session authorize lost`)
-    }
-
-    const membership = ctx.session.membership
-    if (membership === undefined) {
-      throw new Error(`context session membership lost`)
-    }
-
-    const navigation = ctx.session.navigation
-    if (navigation === undefined) {
-      throw new Error(`context session navigation lost`)
-    }
+    const authorize = sureSessionAuthorize(ctx)
+    const navigation = sureSessionNavigation(ctx)
+    const membership = sureSessionMembership(ctx)
 
     if (navigation.messageId !== null) {
       await ctx.deleteMessage(navigation.messageId)
@@ -232,28 +210,15 @@ export class App {
       navigation.messageId = null
     }
 
-    //navigation.currentPage = 0
-    //navigation.totalPages = 0
-
     if (authorize.status === 'register') {
       await ctx.scene.enter('register')
     } else {
       if (!membership.checkGroup) {
-        const message = await ctx.replyWithMarkdownV2(
-          `Необходимо подписаться на [группу](${groupUrl})`,
-          keyboardMainCheckGroup()
-        )
-
-        navigation.messageId = message.message_id
+        await replyMainCheckGroup(ctx, authorize, navigation, groupUrl)
       } else if (!membership.checkChannel) {
-        const message = await ctx.replyWithMarkdownV2(
-          `Необходимо подписаться на [канал](${channelUrl})`,
-          keyboardMainCheckChannel()
-        )
-
-        navigation.messageId = message.message_id
+        await replyMainCheckChannel(ctx, authorize, navigation, channelUrl)
       } else {
-        await handler(authorize, membership, navigation)
+        await handler(authorize, navigation)
       }
     }
   }
@@ -293,9 +258,9 @@ export class App {
       const { type: chatType } = ctx.chat
 
       if (chatType === 'private') {
-        await ctx.replyWithMarkdownV2(
-          `Неизвестная команда`
-        )
+        //await ctx.replyWithMarkdownV2(
+        //  `Неизвестная команда`
+        //)
       }
 
       logger.warn(`Bot unknown ${chatType} message`)

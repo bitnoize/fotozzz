@@ -793,18 +793,11 @@ WHERE id = $1
 RETURNING id
 `
 
-  private readonly updateUserAboutSql = `
-UPDATE users SET
-  about = $2,
-  last_activity_time = NOW()
-WHERE id = $1
-RETURNING id
-`
-
   private readonly updateUserLastActivityTimeSql = `
 UPDATE users SET
   last_activity_time = NOW()
 WHERE id = $1
+RETURNING id
 `
 
   private readonly insertUserLogSql = `

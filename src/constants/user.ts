@@ -6,7 +6,7 @@ export const USER_STATUSES = ['register', 'active', 'penalty', 'banned']
 export const USER_ROLES = ['user', 'moderator', 'admin']
 
 export const USER_AVATAR_UNKNOWN =
-  'CAACAgUAAxkBAAETVydiZiwhH_fMn2x-CK8ZZSHklAREWQACHgAD9oK6D71hz3MWpjrmJAQ'
+  'AgACAgIAAxkBAAIGh2VdVUw2SI5Sg7sFup5pj_2RVyy7AAKl1DEbe-zoSqp2IFl7Cv9SAQADAgADeQADMwQ'
 
 export const USER_GENDER_EMOJIS: Record<string, string> = {
   male: '\u{1F57A}',

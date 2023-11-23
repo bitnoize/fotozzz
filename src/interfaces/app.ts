@@ -73,9 +73,8 @@ export type AppContextExceptionHandler = (
   ctx: AppContext,
 ) => Promise<unknown | void>
 
-export type PrepareMenuHandler = (
+export type PrepareMainHandler = (
   authorize: User,
-  membership: Membership,
   navigation: Navigation
 ) => Promise<void>
 

@@ -12,11 +12,17 @@ import {
 import { RedisService } from '../services/redis.js'
 import { PostgresService } from '../services/postgres.js'
 import {
+  wizardNextStep,
+  sureSessionAuthorize,
+  sureSessionNavigation,
+  initSceneSessionChangeAbout,
+  sureSceneSessionChangeAbout,
   isUserAbout,
   isChangeAbout,
-  resetNavigation,
-  keyboardMainMenu,
-  keyboardChangeAboutConfirm
+  replyMainMenu,
+  replyMainError,
+  replyChangeAbout,
+  replyChangeAboutWrong,
 } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
 
@@ -30,126 +36,37 @@ export class ChangeAboutController implements Controller {
     this.scene = new Scenes.WizardScene<AppContext>(
       'change-about',
       this.startSceneHandler,
-      this.queryConfirmHandler,
-      this.replyConfirmComposer(),
       this.queryAboutHandler,
       this.replyAboutComposer(),
-      this.completeSceneHandler
+      this.finishSceneHandler
     )
 
     this.scene.use(Scenes.WizardScene.catch(this.exceptionHandler))
   }
 
   private startSceneHandler: AppContextHandler = async (ctx, next) => {
-    const authorize = ctx.session.authorize
-    if (authorize === undefined) {
-      throw new Error(`context session authorize lost`)
-    }
+    const authorize = sureSessionAuthorize(ctx)
+    const navigation = sureSessionNavigation(ctx)
 
-    const navigation = ctx.session.navigation
-    if (navigation === undefined) {
-      throw new Error(`context session navigation lost`)
-    }
-
-    resetNavigation(navigation)
-
-    ctx.scene.session.changeAbout = {} as Partial<ChangeAbout>
+    initSceneSessionChangeAbout(ctx)
 
     const allowedStatuses = ['active', 'penalty']
     if (allowedStatuses.includes(authorize.status)) {
       ctx.wizard.next()
 
-      if (typeof ctx.wizard.step !== 'function') {
-        throw new Error(`context wizard step lost`)
-      }
-
-      return ctx.wizard.step(ctx, next)
+      return wizardNextStep(ctx, next)
     } else {
       await ctx.scene.leave()
 
-      const message = await ctx.replyWithMarkdownV2(
-        `Редактирование о себе доступно только активным юзерам`,
-        keyboardMainMenu()
-      )
-
-      navigation.messageId = message.message_id
+      await replyMainMenu(ctx, authorize, navigation)
     }
-  }
-
-  private queryConfirmHandler: AppContextHandler = async (ctx) => {
-    const navigation = ctx.session.navigation
-    if (navigation === undefined) {
-      throw new Error(`context session navigation lost`)
-    }
-
-    const message = await ctx.replyWithMarkdownV2(
-      `Ты действительно хочешь поменять информацию о себе?`,
-      keyboardChangeAboutConfirm()
-    )
-
-    navigation.messageId = message.message_id
-
-    ctx.wizard.next()
-  }
-
-  private replyConfirmComposer = (): Composer<AppContext> => {
-    const handler = new Composer<AppContext>()
-
-    handler.action('change-about-confirm-next', this.replyConfirmNextHandler)
-    handler.action('change-about-confirm-back', this.replyConfirmBackHandler)
-    handler.use(this.replyConfirmUnknownHandler)
-
-    return handler
-  }
-
-  private replyConfirmNextHandler: AppContextHandler = async (ctx, next) => {
-    const navigation = ctx.session.navigation
-    if (navigation === undefined) {
-      throw new Error(`context session navigation lost`)
-    }
-
-    if (navigation.messageId !== null) {
-      await ctx.deleteMessage(navigation.messageId)
-
-      navigation.messageId = null
-    }
-
-    ctx.wizard.next()
-
-    if (typeof ctx.wizard.step !== 'function') {
-      throw new Error(`context wizard step lost`)
-    }
-
-    return ctx.wizard.step(ctx, next)
-  }
-
-  private replyConfirmBackHandler: AppContextHandler = async (ctx, next) => {
-    const navigation = ctx.session.navigation
-    if (navigation === undefined) {
-      throw new Error(`context session navigation lost`)
-    }
-
-    if (navigation.messageId !== null) {
-      await ctx.deleteMessage(navigation.messageId)
-
-      navigation.messageId = null
-    }
-
-    await ctx.scene.leave()
-
-    await ctx.scene.enter('profile')
-  }
-
-  private replyConfirmUnknownHandler: AppContextHandler = async (ctx) => {
-    await ctx.replyWithMarkdownV2(
-      `Используй кнопки в меню выше`
-    )
   }
 
   private queryAboutHandler: AppContextHandler = async (ctx) => {
-    await ctx.replyWithMarkdownV2(
-      `Расскажи о себе`
-    )
+    const authorize = sureSessionAuthorize(ctx)
+    const navigation = sureSessionNavigation(ctx)
+
+    await replyChangeAbout(ctx, authorize, navigation)
 
     ctx.wizard.next()
   }
@@ -157,17 +74,23 @@ export class ChangeAboutController implements Controller {
   private replyAboutComposer = (): Composer<AppContext> => {
     const handler = new Composer<AppContext>()
 
+    handler.action('change-about-back', this.returnProfileHandler)
     handler.on('text', this.replyAboutTextHandler)
     handler.use(this.replyAboutUnknownHandler)
 
     return handler
   }
 
+  private returnProfileHandler: AppContextHandler = async (ctx, next) => {
+    await ctx.scene.leave()
+
+    await ctx.scene.enter('profile')
+  }
+
   private replyAboutTextHandler: AppContextHandler = async (ctx, next) => {
-    const changeAbout = ctx.scene.session.changeAbout
-    if (changeAbout === undefined) {
-      throw new Error(`context scene session changeAbout lost`)
-    }
+    const authorize = sureSessionAuthorize(ctx)
+    const navigation = sureSessionNavigation(ctx)
+    const changeAbout = sureSceneSessionChangeAbout(ctx)
 
     if (ctx.has(message('text'))) {
       const userAbout = ctx.message.text
@@ -177,40 +100,24 @@ export class ChangeAboutController implements Controller {
 
         ctx.wizard.next()
 
-        if (typeof ctx.wizard.step !== 'function') {
-          throw new Error(`context wizard step lost`)
-        }
-
-        return ctx.wizard.step(ctx, next)
+        return wizardNextStep(ctx, next)
       } else {
-        await ctx.replyWithMarkdownV2(
-          `Некорректный ввод, попробуй еще раз`
-        )
+        await replyChangeAboutWrong(ctx, authorize, navigation)
       }
     }
   }
 
   private replyAboutUnknownHandler: AppContextHandler = async (ctx) => {
-    await ctx.replyWithMarkdownV2(
-      `Используй обычное текстовое сообщение`
-    )
+    const authorize = sureSessionAuthorize(ctx)
+    const navigation = sureSessionNavigation(ctx)
+
+    await replyChangeAbout(ctx, authorize, navigation)
   }
 
-  private completeSceneHandler: AppContextHandler = async (ctx) => {
-    const authorize = ctx.session.authorize
-    if (authorize === undefined) {
-      throw new Error(`context session authorize lost`)
-    }
-
-    const navigation = ctx.session.navigation
-    if (navigation === undefined) {
-      throw new Error(`context session navigation lost`)
-    }
-
-    const changeAbout = ctx.scene.session.changeAbout
-    if (changeAbout === undefined) {
-      throw new Error(`context scene session changeAbout lost`)
-    }
+  private finishSceneHandler: AppContextHandler = async (ctx) => {
+    const authorize = sureSessionAuthorize(ctx)
+    const navigation = sureSessionNavigation(ctx)
+    const changeAbout = sureSceneSessionChangeAbout(ctx)
 
     if (!isChangeAbout(changeAbout)) {
       throw new Error(`scene session changeAbout data malformed`)
@@ -220,12 +127,6 @@ export class ChangeAboutController implements Controller {
       authorize.id,
       changeAbout.about
     )
-
-    if (navigation.messageId !== null) {
-      await ctx.deleteMessage(navigation.messageId)
-
-      navigation.messageId = null
-    }
 
     await ctx.scene.leave()
 
@@ -241,9 +142,6 @@ export class ChangeAboutController implements Controller {
 
     await ctx.scene.leave()
 
-    await ctx.replyWithMarkdownV2(
-      `Произошла ошибка, выход в главное меню`,
-      keyboardMainMenu()
-    )
+    await replyMainError(ctx)
   }
 }
