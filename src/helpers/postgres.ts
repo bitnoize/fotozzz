@@ -255,7 +255,7 @@ export const isRowsPhotos = (
   return (
     rowsPhotos != null &&
     Array.isArray(rowsPhotos) &&
-    rowsPhotos.some((rowPhoto) => isRowPhoto(rowPhoto))
+    !rowsPhotos.some((rowPhoto) => isRowPhoto(rowPhoto))
   )
 }
 

@@ -17,7 +17,8 @@ import { RegisterController } from './controllers/register.js'
 import { ProfileController } from './controllers/profile.js'
 import { ChangeAvatarController } from './controllers/change-avatar.js'
 import { ChangeAboutController } from './controllers/change-about.js'
-//import { PhotoController } from './controllers/photo.js'
+import { PhotoController } from './controllers/photo.js'
+import { NewPhotoController } from './controllers/new-photo.js'
 import {
   blankNavigation,
   blankMembership,
@@ -68,7 +69,8 @@ export class App {
     controllers.push(new ProfileController(this.options))
     controllers.push(new ChangeAvatarController(this.options))
     controllers.push(new ChangeAboutController(this.options))
-    //controllers.push(new PhotoController(this.options))
+    controllers.push(new PhotoController(this.options))
+    controllers.push(new NewPhotoController(this.options))
 
     const stage = new Scenes.Stage<AppContext>(
       controllers.map((controller) => controller.scene)
@@ -203,12 +205,6 @@ export class App {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
     const membership = sureSessionMembership(ctx)
-
-    if (navigation.messageId !== null) {
-      await ctx.deleteMessage(navigation.messageId)
-
-      navigation.messageId = null
-    }
 
     if (authorize.status === 'register') {
       await ctx.scene.enter('register')

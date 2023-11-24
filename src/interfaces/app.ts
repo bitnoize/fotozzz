@@ -38,10 +38,12 @@ export interface AppWizardSession extends Scenes.WizardSessionData {
   changeAvatar?: Partial<ChangeAvatar>
   changeAbout?: Partial<ChangeAbout>
   newPhoto?: Partial<NewPhoto>
+  deletePhoto?: number
 }
 
 export interface Navigation {
   messageId: number | null
+  updatable: boolean
   currentPage: number
   totalPages: number
 }

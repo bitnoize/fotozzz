@@ -21,7 +21,7 @@ import {
   isChangeAbout,
   replyMainMenu,
   replyMainError,
-  replyChangeAbout,
+  replyChangeAboutMenu,
   replyChangeAboutWrong,
 } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
@@ -66,7 +66,7 @@ export class ChangeAboutController implements Controller {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
 
-    await replyChangeAbout(ctx, authorize, navigation)
+    await replyChangeAboutMenu(ctx, authorize, navigation)
 
     ctx.wizard.next()
   }
@@ -111,7 +111,7 @@ export class ChangeAboutController implements Controller {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
 
-    await replyChangeAbout(ctx, authorize, navigation)
+    await replyChangeAboutMenu(ctx, authorize, navigation)
   }
 
   private finishSceneHandler: AppContextHandler = async (ctx) => {

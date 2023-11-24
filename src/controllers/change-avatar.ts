@@ -21,7 +21,7 @@ import {
   isPhotoSize,
   replyMainMenu,
   replyMainError,
-  replyChangeAvatar,
+  replyChangeAvatarMenu,
 } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
 
@@ -65,7 +65,7 @@ export class ChangeAvatarController implements Controller {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
 
-    await replyChangeAvatar(ctx, authorize, navigation)
+    await replyChangeAvatarMenu(ctx, authorize, navigation)
 
     ctx.wizard.next()
   }
@@ -103,7 +103,7 @@ export class ChangeAvatarController implements Controller {
 
         return wizardNextStep(ctx, next)
       } else {
-        await replyChangeAvatar(ctx, authorize, navigation)
+        await replyChangeAvatarMenu(ctx, authorize, navigation)
       }
     }
   }
@@ -112,7 +112,7 @@ export class ChangeAvatarController implements Controller {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
 
-    await replyChangeAvatar(ctx, authorize, navigation)
+    await replyChangeAvatarMenu(ctx, authorize, navigation)
   }
 
   private finishSceneHandler: AppContextHandler = async (ctx) => {

@@ -32,7 +32,7 @@ export class ProfileController implements Controller {
 
     this.scene.action('profile-change-avatar', this.changeAvatarHandler)
     this.scene.action('profile-change-about', this.changeAboutHandler)
-    this.scene.action('profile-return-main', this.returnMainHandler)
+    this.scene.action('profile-back', this.returnMainHandler)
 
     this.scene.use(this.enterSceneHandler)
     this.scene.use(Scenes.BaseScene.catch(this.exceptionHandler))
