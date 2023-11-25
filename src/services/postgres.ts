@@ -392,8 +392,8 @@ export class PostgresService {
 
     try {
       const resultSelectTopics = await client.query(
-        this.selectTopicsByTgChatIdSql
-        [groupChatId]
+        this.selectTopicsByTgChatIdSql,
+        [groupChatId, 'available']
       )
 
       const rowsSelectTopics = resultSelectTopics.rows
@@ -414,6 +414,10 @@ export class PostgresService {
   async newPhoto(
     userId: number,
     topicId: number,
+    groupTgChatId: number,
+    groupTgMessageId: number,
+    channelTgChatId: number,
+    channelTgMessageId: number,
     tgFileId: string,
     description: string,
     from: unknown
@@ -455,7 +459,7 @@ export class PostgresService {
         throw new Error(`select topic malformed result`)
       }
 
-      if (rowSelectTopic['status'] !== 'available') {
+      if (rowSelectTopic.status !== 'available') {
         throw new Error(`only in available topic can create photo`)
       }
 
@@ -464,9 +468,13 @@ export class PostgresService {
         [
           rowSelectUser.id,
           rowSelectTopic.id,
+          groupTgChatId,
+          groupTgMessageId,
+          channelTgChatId,
+          channelTgMessageId,
           tgFileId,
           description,
-          { from }
+          'published'
         ]
       )
 
@@ -490,7 +498,7 @@ export class PostgresService {
         [
           rowSelectPhoto.id,
           rowSelectPhoto.user_id,
-          'photo_create',
+          'photo_publish',
           rowSelectPhoto.status,
           { from }
         ]

@@ -7,6 +7,7 @@ import {
   ChangeAvatar,
   ChangeAbout,
   NewPhoto,
+  NewPhotoPublish,
   Membership,
   Navigation
 } from '../interfaces/app.js'
@@ -27,6 +28,8 @@ export const wizardNextStep = (
   ctx: AppContext,
   next: () => Promise<void>
 ): unknown => {
+  ctx.wizard.next()
+
   if (typeof ctx.wizard.step !== 'function') {
     throw new Error(`context wizard step lost`)
   }
@@ -237,6 +240,15 @@ export const isPhotoSize = (photoSize: unknown): photoSize is PhotoSize => {
   )
 }
 
+export const isPhotoDescription = (description: unknown): description is string => {
+  return (
+    description != null &&
+    typeof description === 'string' &&
+    description.length >= 3 &&
+    description.length <= 300
+  )
+}
+
 export const isRegister = (
   register: Partial<Register>
 ): register is Register => {
@@ -264,12 +276,32 @@ export const isChangeAbout = (
   )
 }
 
+export const isNewPhotoPublish = (
+  newPhoto: Partial<NewPhotoPublish>
+): newPhoto is NewPhotoPublish => {
+  return (
+    newPhoto.topicId !== undefined &&
+    newPhoto.topicName !== undefined &&
+    newPhoto.groupTgChatId !== undefined &&
+    newPhoto.groupTgThreadId !== undefined &&
+    newPhoto.channelTgChatId !== undefined &&
+    newPhoto.tgFileId !== undefined &&
+    newPhoto.description !== undefined
+  )
+}
+
 export const isNewPhoto = (
   newPhoto: Partial<NewPhoto>
 ): newPhoto is NewPhoto => {
   return (
-    newPhoto.tgFileId !== undefined &&
     newPhoto.topicId !== undefined &&
+    newPhoto.topicName !== undefined &&
+    newPhoto.groupTgChatId !== undefined &&
+    newPhoto.groupTgThreadId !== undefined &&
+    newPhoto.groupTgMessageId !== undefined &&
+    newPhoto.channelTgChatId !== undefined &&
+    newPhoto.channelTgMessageId !== undefined &&
+    newPhoto.tgFileId !== undefined &&
     newPhoto.description !== undefined
   )
 }
@@ -310,13 +342,13 @@ export const keyboardProfileMenu = () => {
   ])
 }
 
-export const keyboardChangeAvatarMenu = () => {
+export const keyboardChangeAvatarAvatar = () => {
   return Markup.inlineKeyboard([
     Markup.button.callback('Отмена', 'change-avatar-back')
   ])
 }
 
-export const keyboardChangeAboutMenu = () => {
+export const keyboardChangeAboutAbout = () => {
   return Markup.inlineKeyboard([
     Markup.button.callback('Отмена', 'change-about-back')
   ])
@@ -326,13 +358,13 @@ export const keyboardPhotoMenu = (photo: Photo, navigation: Navigation) => {
   const navButtons = []
 
   if (navigation.currentPage !== 1) {
-    navButtons.push(Markup.button.callback('< Предыдущее', 'photo-prev'))
+    navButtons.push(Markup.button.callback('Предыдущее', 'photo-prev'))
   }
 
   navButtons.push(Markup.button.callback('Перейти', 'photo-goto'))
 
   if (navigation.currentPage !== navigation.totalPages) {
-    navButtons.push(Markup.button.callback('Следующее >', 'photo-next'))
+    navButtons.push(Markup.button.callback('Следующее', 'photo-next'))
   }
 
   return Markup.inlineKeyboard([
@@ -352,7 +384,13 @@ export const keyboardPhotoBlank = () => {
 
 export const keyboardNewPhotoPhoto = () => {
   return Markup.inlineKeyboard([
-    Markup.button.callback('Отмена', 'new-photo-photo-back')
+    Markup.button.callback('Отмена', 'new-photo-back')
+  ])
+}
+
+export const keyboardNewPhotoDescription = () => {
+  return Markup.inlineKeyboard([
+    Markup.button.callback('Отмена', 'new-photo-back')
   ])
 }
 
@@ -363,14 +401,23 @@ export const keyboardNewPhotoTopics = (topics: Topic[]) => {
 
   return Markup.inlineKeyboard([
     ...topicsButtons,
-    [Markup.button.callback('Отмена', 'new-photo-topic-back')]
+    [Markup.button.callback('Отмена', 'new-photo-back')]
   ])
 }
 
-export const keyboardNewPhotoConfirm = () => {
+export const keyboardNewPhotoPublish = () => {
   return Markup.inlineKeyboard([
-    Markup.button.callback('Отмена', 'new-photo-confirm-back'),
-    Markup.button.callback('Продолжить', 'new-photo-confirm-next')
+    Markup.button.callback('Отмена', 'new-photo-back'),
+    Markup.button.callback('Да, конечно!', 'new-photo-publish')
+  ])
+}
+
+export const keyboardNewPhotoGroup = () => {
+  return Markup.inlineKeyboard([
+    Markup.button.callback('Шокирует', 'rate-shoked'),
+    Markup.button.callback('Восхищяет', 'rate-awesome'),
+    Markup.button.callback('Умиляет', 'rate-test1'),
+    Markup.button.callback('Не уместно', 'rate-test2'),
   ])
 }
 
@@ -547,17 +594,22 @@ export const replyProfileMenu = async (
 ): Promise<void> => {
   removeLastMessage(ctx, navigation)
 
-  const extra = keyboardProfileMenu()
-
   const { emojiGender, nick, about } = userFull
-  extra.caption = `${emojiGender} ${nick}\nО себе: ${about}`
+  const caption = `${emojiGender} ${nick}\nО себе: ${about}`
 
-  const message = await ctx.sendPhoto(userFull.avatarTgFileId, extra)
+  const message = await ctx.sendPhoto(
+    userFull.avatarTgFileId,
+    {
+      ...keyboardProfileMenu(),
+      //reply_markup: 'MarkdownV2',
+      caption
+    }
+  )
 
   navigation.messageId = message.message_id
 }
 
-export const replyChangeAvatarMenu = async (
+export const replyChangeAvatarAvatar = async (
   ctx: AppContext,
   authorize: User,
   navigation: Navigation
@@ -566,13 +618,13 @@ export const replyChangeAvatarMenu = async (
 
   const message = await ctx.replyWithMarkdownV2(
     `Загрузи новый аватар`,
-    keyboardChangeAvatarMenu()
+    keyboardChangeAvatarAvatar()
   )
 
   navigation.messageId = message.message_id
 }
 
-export const replyChangeAboutMenu = async (
+export const replyChangeAboutAbout = async (
   ctx: AppContext,
   authorize: User,
   navigation: Navigation
@@ -581,13 +633,13 @@ export const replyChangeAboutMenu = async (
 
   const message = await ctx.replyWithMarkdownV2(
     `Расскажи о себе`,
-    keyboardChangeAboutMenu()
+    keyboardChangeAboutAbout()
   )
 
   navigation.messageId = message.message_id
 }
 
-export const replyChangeAboutWrong = async (
+export const replyChangeAboutAboutWrong = async (
   ctx: AppContext,
   authorize: User,
   navigation: Navigation
@@ -596,7 +648,7 @@ export const replyChangeAboutWrong = async (
 
   const message = await ctx.replyWithMarkdownV2(
     `Некорректный ввод, попробуй еще раз`,
-    keyboardChangeAboutMenu()
+    keyboardChangeAboutAbout()
   )
 
   navigation.messageId = message.message_id
@@ -626,9 +678,8 @@ export const replyPhotoMenu = async (
       throw new Error(`can't get user photo by index`)
     }
 
-    const extra = keyboardPhotoMenu(photo, navigation)
-
-    extra.caption = photo.description
+    const caption = photo.description
+    const keyboard = keyboardPhotoMenu(photo, navigation)
 
     if (navigation.updatable) {
       await ctx.editMessageMedia(
@@ -636,12 +687,23 @@ export const replyPhotoMenu = async (
           type: 'photo',
           media: photo.tgFileId,
         },
-        extra
+        {
+          ...keyboard,
+          //reply_markup: 'MarkdownV2',
+          caption
+        }
       )
     } else {
       navigation.updatable = true
 
-      const message = await ctx.sendPhoto(photo.tgFileId, extra)
+      const message = await ctx.sendPhoto(
+        photo.tgFileId,
+        {
+          ...keyboard,
+          //reply_markup: 'MarkdownV2',
+          caption
+        }
+      )
 
       navigation.messageId = message.message_id
     }
@@ -650,10 +712,8 @@ export const replyPhotoMenu = async (
       `У вас нет опубликованных фото\n` +
       `Отправьте мне фото для публикации\n` +
       `Вы можете загрузить 3 фото в течении 24 часов`,
-      keyboardPhotoBlank()
+      keyboardPhotoBlank(),
     )
-
-    console.dir(keyboardPhotoBlank())
 
     navigation.messageId = message.message_id
 
@@ -669,7 +729,7 @@ export const replyNewPhotoPhoto = async (
   removeLastMessage(ctx, navigation)
 
   const message = await ctx.replyWithMarkdownV2(
-    `Загрузи фотограйию`,
+    `Загрузи фотографию`,
     keyboardNewPhotoPhoto()
   )
 
@@ -692,19 +752,108 @@ export const replyNewPhotoTopics = async (
   navigation.messageId = message.message_id
 }
 
-export const replyNewPhotoConfirm = async (
+export const replyNewPhotoDescription = async (
   ctx: AppContext,
   authorize: User,
-  navigation: Navigation,
+  navigation: Navigation
 ): Promise<void> => {
   removeLastMessage(ctx, navigation)
 
   const message = await ctx.replyWithMarkdownV2(
-    `Опубликовать фото?`,
-    keyboardNewPhotoConfirm()
+    `Описание для фото`,
+    keyboardNewPhotoDescription()
   )
 
   navigation.messageId = message.message_id
+}
+
+export const replyNewPhotoDescriptionWrong = async (
+  ctx: AppContext,
+  authorize: User,
+  navigation: Navigation
+): Promise<void> => {
+  removeLastMessage(ctx, navigation)
+
+  const message = await ctx.replyWithMarkdownV2(
+    `Некорректный ввод, попробуй еще раз`,
+    keyboardNewPhotoDescription()
+  )
+
+  navigation.messageId = message.message_id
+}
+
+export const replyNewPhotoPublish = async (
+  ctx: AppContext,
+  authorize: User,
+  navigation: Navigation,
+  newPhoto: NewPhotoPublish
+): Promise<void> => {
+  removeLastMessage(ctx, navigation)
+
+  const { topicName, description } = newPhoto
+
+  const caption = `*Опубликовать фото?*\n` +
+    `Раздел: ${topicName}\n` +
+    `Описание: ${description}`
+
+  const message = await ctx.sendPhoto(
+    newPhoto.tgFileId,
+    {
+      ...keyboardNewPhotoPublish(),
+      //reply_markup: 'MarkdownV2',
+      caption
+    }
+  )
+
+  navigation.messageId = message.message_id
+}
+
+export const replyNewPhotoGroup = async (
+  ctx: AppContext,
+  authorize: User,
+  navigation: Navigation,
+  newPhoto: NewPhotoPublish
+): Promise<number> => {
+  const { nick, emojiGender } = authorize
+  const { description } = newPhoto
+
+  const caption = `${emojiGender} *${nick}*\n` + description
+
+  const message = await ctx.telegram.sendPhoto(
+    newPhoto.groupTgChatId,
+    newPhoto.tgFileId,
+    {
+      ...keyboardNewPhotoGroup(),
+      message_thread_id: newPhoto.groupTgThreadId
+      //reply_markup: 'MarkdownV2',
+      caption
+    }
+  )
+
+  return message.message_id
+}
+
+export const replyNewPhotoChannel = async (
+  ctx: AppContext,
+  authorize: User,
+  navigation: Navigation,
+  newPhoto: NewPhotoPublish
+): Promise<number> => {
+  const { nick, emojiGender } = authorize
+  const { description } = newPhoto
+
+  const caption = `${emojiGender} *${nick}*\n` + description
+
+  const message = await ctx.telegram.sendPhoto(
+    newPhoto.channelTgChatId,
+    newPhoto.tgFileId,
+    {
+      //reply_markup: 'MarkdownV2',
+      caption
+    }
+  )
+
+  return message.message_id
 }
 
 
@@ -718,19 +867,19 @@ export const replyNewPhotoConfirm = async (
 
 
 
-
-export const keyboardChangeAvatarConfirm = () => {
+/*
+export const keyboardChangeAvatarPublish = () => {
   return Markup.inlineKeyboard([
     Markup.button.callback('Вернуться', 'change-avatar-confirm-back'),
     Markup.button.callback('Продолжить', 'change-avatar-confirm-next')
   ])
 }
 
-export const keyboardChangeAboutConfirm = () => {
+export const keyboardChangeAboutPublish = () => {
   return Markup.inlineKeyboard([
     Markup.button.callback('Вернуться', 'change-about-confirm-back'),
     Markup.button.callback('Продолжить', 'change-about-confirm-next')
   ])
 }
 
-
+*/

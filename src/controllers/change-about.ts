@@ -17,12 +17,13 @@ import {
   sureSessionNavigation,
   initSceneSessionChangeAbout,
   sureSceneSessionChangeAbout,
+  dropSceneSessionChangeAbout,
   isUserAbout,
   isChangeAbout,
   replyMainMenu,
   replyMainError,
-  replyChangeAboutMenu,
-  replyChangeAboutWrong,
+  replyChangeAboutAbout,
+  replyChangeAboutAboutWrong
 } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
 
@@ -52,8 +53,6 @@ export class ChangeAboutController implements Controller {
 
     const allowedStatuses = ['active', 'penalty']
     if (allowedStatuses.includes(authorize.status)) {
-      ctx.wizard.next()
-
       return wizardNextStep(ctx, next)
     } else {
       await ctx.scene.leave()
@@ -66,28 +65,22 @@ export class ChangeAboutController implements Controller {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
 
-    await replyChangeAboutMenu(ctx, authorize, navigation)
+    await replyChangeAboutAbout(ctx, authorize, navigation)
 
     ctx.wizard.next()
   }
 
   private replyAboutComposer = (): Composer<AppContext> => {
-    const handler = new Composer<AppContext>()
+    const composer = new Composer<AppContext>()
 
-    handler.action('change-about-back', this.returnProfileHandler)
-    handler.on('text', this.replyAboutTextHandler)
-    handler.use(this.replyAboutUnknownHandler)
+    composer.on('text', this.replyAboutInputHandler)
+    composer.action('change-about-back', this.returnProfileHandler)
+    composer.use(this.replyAboutUnknownHandler)
 
-    return handler
+    return composer
   }
 
-  private returnProfileHandler: AppContextHandler = async (ctx, next) => {
-    await ctx.scene.leave()
-
-    await ctx.scene.enter('profile')
-  }
-
-  private replyAboutTextHandler: AppContextHandler = async (ctx, next) => {
+  private replyAboutInputHandler: AppContextHandler = async (ctx, next) => {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
     const changeAbout = sureSceneSessionChangeAbout(ctx)
@@ -98,11 +91,9 @@ export class ChangeAboutController implements Controller {
       if (isUserAbout(userAbout)) {
         changeAbout.about = userAbout
 
-        ctx.wizard.next()
-
         return wizardNextStep(ctx, next)
       } else {
-        await replyChangeAboutWrong(ctx, authorize, navigation)
+        await replyChangeAboutAboutWrong(ctx, authorize, navigation)
       }
     }
   }
@@ -111,7 +102,7 @@ export class ChangeAboutController implements Controller {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
 
-    await replyChangeAboutMenu(ctx, authorize, navigation)
+    await replyChangeAboutAbout(ctx, authorize, navigation)
   }
 
   private finishSceneHandler: AppContextHandler = async (ctx) => {
@@ -128,6 +119,14 @@ export class ChangeAboutController implements Controller {
       changeAbout.about
     )
 
+    dropSceneSessionChangeAbout(ctx)
+
+    await ctx.scene.leave()
+
+    await ctx.scene.enter('profile')
+  }
+
+  private returnProfileHandler: AppContextHandler = async (ctx, next) => {
     await ctx.scene.leave()
 
     await ctx.scene.enter('profile')

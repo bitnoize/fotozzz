@@ -85,22 +85,36 @@ export class PhotoController implements Controller {
   }
 
   private deletePhotoHandler = async (ctx: AppContext): Promise<void> => {
-    const photoIdRaw = ctx.match[1]
+    const authorize = sureSessionAuthorize(ctx)
+    const navigation = sureSessionNavigation(ctx)
 
-    if (photoIdRaw != null && typeof photoIdRaw === 'string') {
-      const photoId = parseInt(photoIdRaw)
+    const photos = await this.postgresService.getPhotosUser(authorize.id)
 
-      if (photoId != null && typeof photoId === 'number') {
-        initSceneSessionDeletePhoto(ctx, photoId)
+    const photoId = parseInt(ctx.match[1])
 
-        await ctx.scene.leave()
+    if (
+      photoId != null &&
+      typeof photoId === 'number' &&
+      photos.map((photo) => photo.id).indexOf(photoId) != -1
+    ) {
+      resetNavigation(navigation)
 
-        await ctx.scene.enter('delete-photo')
-      }
+      initSceneSessionDeletePhoto(ctx, photoId)
+
+      await ctx.scene.leave()
+
+      await ctx.scene.enter('delete-photo')
+    } else {
+      await replyPhotoMenu(ctx, authorize, navigation, photos)
     }
   }
 
   private newPhotoHandler = async (ctx: AppContext): Promise<void> => {
+    const authorize = sureSessionAuthorize(ctx)
+    const navigation = sureSessionNavigation(ctx)
+
+    resetNavigation(navigation)
+
     await ctx.scene.leave()
 
     await ctx.scene.enter('new-photo')
@@ -109,6 +123,8 @@ export class PhotoController implements Controller {
   private returnMainHandler = async (ctx: AppContext): Promise<void> => {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
+
+    resetNavigation(navigation)
 
     await ctx.scene.leave()
 

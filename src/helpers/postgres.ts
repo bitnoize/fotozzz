@@ -191,7 +191,7 @@ export const isRowsTopics = (
   return (
     rowsTopics != null &&
     Array.isArray(rowsTopics) &&
-    rowsTopics.some((rowTopic) => isRowTopic(rowTopic))
+    rowsTopics.every((rowTopic) => isRowTopic(rowTopic))
   )
 }
 
@@ -255,7 +255,7 @@ export const isRowsPhotos = (
   return (
     rowsPhotos != null &&
     Array.isArray(rowsPhotos) &&
-    !rowsPhotos.some((rowPhoto) => isRowPhoto(rowPhoto))
+    rowsPhotos.every((rowPhoto) => isRowPhoto(rowPhoto))
   )
 }
 
@@ -313,7 +313,7 @@ export const isRowsComments = (
   return (
     rowsComments != null &&
     Array.isArray(rowsComments) &&
-    rowsComments.some((rowComment) => isRowComment(rowComment))
+    rowsComments.every((rowComment) => isRowComment(rowComment))
   )
 }
 

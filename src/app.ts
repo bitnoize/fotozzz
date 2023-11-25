@@ -21,6 +21,7 @@ import { PhotoController } from './controllers/photo.js'
 import { NewPhotoController } from './controllers/new-photo.js'
 import {
   blankNavigation,
+  resetNavigation,
   blankMembership,
   initSessionAuthorize,
   sureSessionAuthorize,
@@ -205,6 +206,8 @@ export class App {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
     const membership = sureSessionMembership(ctx)
+
+    resetNavigation(navigation)
 
     if (authorize.status === 'register') {
       await ctx.scene.enter('register')

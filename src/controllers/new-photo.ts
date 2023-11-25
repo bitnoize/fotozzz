@@ -17,13 +17,19 @@ import {
   sureSessionNavigation,
   initSceneSessionNewPhoto,
   sureSceneSessionNewPhoto,
+  isNewPhotoPublish,
   isNewPhoto,
   isPhotoSize,
+  isPhotoDescription,
   replyMainMenu,
   replyMainError,
   replyNewPhotoPhoto,
   replyNewPhotoTopics,
-  replyNewPhotoConfirm
+  replyNewPhotoDescription,
+  replyNewPhotoDescriptionWrong,
+  replyNewPhotoPublish,
+  replyNewPhotoGroup,
+  replyNewPhotoChannel
 } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
 
@@ -41,10 +47,10 @@ export class NewPhotoController implements Controller {
       this.replyPhotoComposer(),
       this.queryTopicHandler,
       this.replyTopicComposer(),
-      //this.queryDescriptionHandler,
-      //this.replyDescriptionComposer(),
-      this.queryConfirmHandler,
-      this.replyConfirmComposer(),
+      this.queryDescriptionHandler,
+      this.replyDescriptionComposer(),
+      this.queryPublishHandler,
+      this.replyPublishComposer(),
       this.finishSceneHandler
     )
 
@@ -59,8 +65,6 @@ export class NewPhotoController implements Controller {
 
     const allowedStatuses = ['active']
     if (allowedStatuses.includes(authorize.status)) {
-      ctx.wizard.next()
-
       return wizardNextStep(ctx, next)
     } else {
       await ctx.scene.leave()
@@ -81,14 +85,14 @@ export class NewPhotoController implements Controller {
   private replyPhotoComposer = (): Composer<AppContext> => {
     const composer = new Composer<AppContext>()
 
-    composer.action('new-photo-photo-back', this.replyReturnPhotoHandler)
-    composer.on('photo', this.replyPhotoPhotoHandler)
+    composer.on('photo', this.replyPhotoInputHandler)
+    composer.action('new-photo-back', this.returnPhotoHandler)
     composer.use(this.replyPhotoUnknownHandler)
 
     return composer
   }
 
-  private replyPhotoPhotoHandler: AppContextHandler = async (ctx, next) => {
+  private replyPhotoInputHandler: AppContextHandler = async (ctx, next) => {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
     const newPhoto = sureSceneSessionNewPhoto(ctx)
@@ -100,8 +104,6 @@ export class NewPhotoController implements Controller {
 
       if (isPhotoSize(photoSize)) {
         newPhoto.tgFileId = photoSize.file_id
-
-        ctx.wizard.next()
 
         return wizardNextStep(ctx, next)
       } else {
@@ -133,37 +135,39 @@ export class NewPhotoController implements Controller {
   private replyTopicComposer = (): Composer<AppContext> => {
     const handler = new Composer<AppContext>()
 
-    handler.action('new-photo-topic-back', this.replyReturnPhotoHandler)
-    handler.action(/^new-photo-topic-(\d+)$/, this.replyTopicSelectHandler)
+    handler.action(/^new-photo-topic-(\d+)$/, this.replyTopicInputHandler)
+    handler.action('new-photo-back', this.returnPhotoHandler)
     handler.use(this.replyTopicUnknownHandler)
 
     return handler
   }
 
-  private replyTopicSelectHandler: AppContextHandler = async (ctx, next) => {
+  private replyTopicInputHandler: AppContextHandler = async (ctx, next) => {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
     const newPhoto = sureSceneSessionNewPhoto(ctx)
 
-    const { groupChatId } = this.options
+    const { groupChatId, channelChatId } = this.options
 
     const topics = await this.postgresService.getTopics(groupChatId)
 
     const topicId = parseInt(ctx.match[1])
 
-    if (
-      topicId != null &&
-      typeof topicId === 'number' &&
-      topics.map((topic) => topic.id).indexOf(topicId) != -1
-    ) {
-      newPhoto.topicId = topicId
+    if (topicId != null && typeof topicId === 'number') {
+      const topic = topics.find((topic) => topic.id === topicId)
 
-      ctx.wizard.next()
+      if (topic !== undefined) {
+        newPhoto.topicId = topic.id
+        newPhoto.topicName = topic.name
+        newPhoto.groupTgChatId = topic.tgChatId
+        newPhoto.groupTgThreadId = topic.tgThreadId
+        newPhoto.channelTgChatId = channelChatId
 
-      return wizardNextStep(ctx, next)
-    } else {
-      await replyNewPhotoTopics(ctx, authorize, navigation, topics)
+        return wizardNextStep(ctx, next)
+      }
     }
+
+    await replyNewPhotoTopics(ctx, authorize, navigation, topics)
   }
 
   private replyTopicUnknownHandler: AppContextHandler = async (ctx) => {
@@ -177,39 +181,98 @@ export class NewPhotoController implements Controller {
     await replyNewPhotoTopics(ctx, authorize, navigation, topics)
   }
 
-  private queryConfirmHandler: AppContextHandler = async (ctx) => {
+  private queryDescriptionHandler: AppContextHandler = async (ctx) => {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
 
-    await replyNewPhotoConfirm(ctx, authorize, navigation)
+    await replyNewPhotoDescription(ctx, authorize, navigation)
 
     ctx.wizard.next()
   }
 
-  private replyConfirmComposer = (): Composer<AppContext> => {
+  private replyDescriptionComposer = (): Composer<AppContext> => {
+    const composer = new Composer<AppContext>()
+
+    composer.on('text', this.replyDescriptionInputHandler)
+    composer.action('new-photo-back', this.returnPhotoHandler)
+    composer.use(this.replyDescriptionUnknownHandler)
+
+    return composer
+  }
+
+  private replyDescriptionInputHandler: AppContextHandler = async (ctx, next) => {
+    const authorize = sureSessionAuthorize(ctx)
+    const navigation = sureSessionNavigation(ctx)
+    const newPhoto = sureSceneSessionNewPhoto(ctx)
+
+    if (ctx.has(message('text'))) {
+      const description = ctx.message.text
+
+      if (isPhotoDescription(description)) {
+        newPhoto.description = description
+
+        return wizardNextStep(ctx, next)
+      } else {
+        await replyNewPhotoDescriptionWrong(ctx, authorize, navigation)
+      }
+    }
+  }
+
+  private replyDescriptionUnknownHandler: AppContextHandler = async (ctx) => {
+    const authorize = sureSessionAuthorize(ctx)
+    const navigation = sureSessionNavigation(ctx)
+
+    await replyNewPhotoDescription(ctx, authorize, navigation)
+  }
+
+  private queryPublishHandler: AppContextHandler = async (ctx) => {
+    const authorize = sureSessionAuthorize(ctx)
+    const navigation = sureSessionNavigation(ctx)
+    const newPhoto = sureSceneSessionNewPhoto(ctx)
+
+    if (!isNewPhotoPublish(newPhoto)) {
+      throw new Error(`scene session newPhoto data malformed`)
+    }
+
+    await replyNewPhotoPublish(ctx, authorize, navigation, newPhoto)
+
+    ctx.wizard.next()
+  }
+
+  private replyPublishComposer = (): Composer<AppContext> => {
     const handler = new Composer<AppContext>()
 
-    handler.action('new-photo-confirm-back', this.replyReturnPhotoHandler)
-    handler.action('new-photo-confirm-next', this.replyConfirmNextHandler)
-    handler.use(this.replyConfirmUnknownHandler)
+    handler.action('new-photo-publish', this.replyPublishInputHandler)
+    handler.action('new-photo-back', this.returnPhotoHandler)
+    handler.use(this.replyPublishUnknownHandler)
 
     return handler
   }
 
-  private replyConfirmNextHandler: AppContextHandler = async (ctx, next) => {
+  private replyPublishInputHandler: AppContextHandler = async (ctx, next) => {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
+    const newPhoto = sureSceneSessionNewPhoto(ctx)
 
-    ctx.wizard.next()
+    if (!isNewPhotoPublish(newPhoto)) {
+      throw new Error(`scene session newPhoto data malformed`)
+    }
+
+    newPhoto.groupTgMessageId =
+      await replyNewPhotoGroup(ctx, authorize, navigation, newPhoto)
+    
+    newPhoto.channelTgMessageId =
+      await replyNewPhotoChannel(ctx, authorize, navigation, newPhoto)
 
     return wizardNextStep(ctx, next)
   }
 
-  private replyConfirmUnknownHandler: AppContextHandler = async (ctx) => {
+  private replyPublishUnknownHandler: AppContextHandler = async (ctx) => {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
+    const newPhoto = sureSceneSessionNewPhoto(ctx)
 
-    await replyNewPhotoConfirm(ctx, authorize, navigation)
+    await replyNewPhotoPublish(ctx, authorize, navigation, newPhoto)
   }
 
   private finishSceneHandler: AppContextHandler = async (ctx) => {
@@ -221,17 +284,26 @@ export class NewPhotoController implements Controller {
       throw new Error(`scene session newPhoto data malformed`)
     }
 
-    //await this.postgresService.newPhoto(
-    //  authorize.id,
-    //  newPhoto.tgFileId
-    //)
+    const photo = await this.postgresService.newPhoto(
+      authorize.id,
+      newPhoto.topicId,
+      newPhoto.groupTgChatId,
+      newPhoto.groupTgMessageId,
+      newPhoto.channelTgChatId,
+      newPhoto.channelTgMessageId,
+      newPhoto.tgFileId,
+      newPhoto.description,
+      ctx.from
+    )
+
+    console.dir(photo)
 
     await ctx.scene.leave()
 
     await ctx.scene.enter('photo')
   }
 
-  private replyReturnPhotoHandler: AppContextHandler = async (ctx, next) => {
+  private returnPhotoHandler: AppContextHandler = async (ctx, next) => {
     await ctx.scene.leave()
 
     await ctx.scene.enter('photo')

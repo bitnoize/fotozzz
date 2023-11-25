@@ -17,11 +17,12 @@ import {
   sureSessionNavigation,
   initSceneSessionChangeAvatar,
   sureSceneSessionChangeAvatar,
+  dropSceneSessionChangeAvatar,
   isChangeAvatar,
   isPhotoSize,
   replyMainMenu,
   replyMainError,
-  replyChangeAvatarMenu,
+  replyChangeAvatarAvatar,
 } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
 
@@ -51,8 +52,6 @@ export class ChangeAvatarController implements Controller {
 
     const allowedStatuses = ['active', 'penalty']
     if (allowedStatuses.includes(authorize.status)) {
-      ctx.wizard.next()
-
       return wizardNextStep(ctx, next)
     } else {
       await ctx.scene.leave()
@@ -65,28 +64,22 @@ export class ChangeAvatarController implements Controller {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
 
-    await replyChangeAvatarMenu(ctx, authorize, navigation)
+    await replyChangeAvatarAvatar(ctx, authorize, navigation)
 
     ctx.wizard.next()
   }
 
   private replyAvatarComposer = (): Composer<AppContext> => {
-    const handler = new Composer<AppContext>()
+    const composer = new Composer<AppContext>()
 
-    handler.action('change-avatar-back', this.returnProfileHandler)
-    handler.on('photo', this.replyAvatarPhotoHandler)
-    handler.use(this.replyAvatarUnknownHandler)
+    composer.on('photo', this.replyAvatarInputHandler)
+    composer.action('change-avatar-back', this.returnProfileHandler)
+    composer.use(this.replyAvatarUnknownHandler)
 
-    return handler
+    return composer
   }
 
-  private returnProfileHandler: AppContextHandler = async (ctx, next) => {
-    await ctx.scene.leave()
-
-    await ctx.scene.enter('profile')
-  }
-
-  private replyAvatarPhotoHandler: AppContextHandler = async (ctx, next) => {
+  private replyAvatarInputHandler: AppContextHandler = async (ctx, next) => {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
     const changeAvatar = sureSceneSessionChangeAvatar(ctx)
@@ -99,11 +92,9 @@ export class ChangeAvatarController implements Controller {
       if (isPhotoSize(photoSize)) {
         changeAvatar.avatarTgFileId = photoSize.file_id
 
-        ctx.wizard.next()
-
         return wizardNextStep(ctx, next)
       } else {
-        await replyChangeAvatarMenu(ctx, authorize, navigation)
+        await replyChangeAvatarAvatar(ctx, authorize, navigation)
       }
     }
   }
@@ -112,7 +103,7 @@ export class ChangeAvatarController implements Controller {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
 
-    await replyChangeAvatarMenu(ctx, authorize, navigation)
+    await replyChangeAvatarAvatar(ctx, authorize, navigation)
   }
 
   private finishSceneHandler: AppContextHandler = async (ctx) => {
@@ -129,6 +120,14 @@ export class ChangeAvatarController implements Controller {
       changeAvatar.avatarTgFileId
     )
 
+    dropSceneSessionChangeAvatar(ctx)
+
+    await ctx.scene.leave()
+
+    await ctx.scene.enter('profile')
+  }
+
+  private returnProfileHandler: AppContextHandler = async (ctx, next) => {
     await ctx.scene.leave()
 
     await ctx.scene.enter('profile')

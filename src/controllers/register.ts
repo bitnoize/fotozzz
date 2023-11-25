@@ -18,6 +18,7 @@ import {
   sureSessionNavigation,
   initSceneSessionRegister,
   sureSceneSessionRegister,
+  dropSceneSessionRegister,
   isUserGender,
   isUserNick,
   isUserAbout,
@@ -66,8 +67,6 @@ export class RegisterController implements Controller {
     initSceneSessionRegister(ctx)
 
     if (authorize.status === 'register') {
-      ctx.wizard.next()
-
       return wizardNextStep(ctx, next)
     } else {
       await ctx.scene.leave()
@@ -86,12 +85,12 @@ export class RegisterController implements Controller {
   }
 
   private replyNickComposer = (): Composer<AppContext> => {
-    const handler = new Composer<AppContext>()
+    const composer = new Composer<AppContext>()
 
-    handler.on('text', this.replyNickTextHandler)
-    handler.use(this.replyNickUnknownHandler)
+    composer.on('text', this.replyNickTextHandler)
+    composer.use(this.replyNickUnknownHandler)
 
-    return handler
+    return composer
   }
 
   private replyNickTextHandler: AppContextHandler = async (ctx, next) => {
@@ -107,8 +106,6 @@ export class RegisterController implements Controller {
 
         if (isSuccess) {
           register.nick = userNick
-
-          ctx.wizard.next()
 
           return wizardNextStep(ctx, next)
         } else {
@@ -137,15 +134,15 @@ export class RegisterController implements Controller {
   }
 
   private replyGenderComposer = (): Composer<AppContext> => {
-    const handler = new Composer<AppContext>()
+    const composer = new Composer<AppContext>()
 
-    handler.action(/^register-gender-(\w+)$/, this.replyGenderActionHandler)
-    handler.use(this.replyGenderUnknownHandler)
+    composer.action(/^register-gender-(\w+)$/, this.replyGenderSelectHandler)
+    composer.use(this.replyGenderUnknownHandler)
 
-    return handler
+    return composer
   }
 
-  private replyGenderActionHandler: AppContextHandler = async (ctx, next) => {
+  private replyGenderSelectHandler: AppContextHandler = async (ctx, next) => {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
     const register = sureSceneSessionRegister(ctx)
@@ -154,8 +151,6 @@ export class RegisterController implements Controller {
 
     if (isUserGender(userGender)) {
       register.gender = userGender
-
-      ctx.wizard.next()
 
       return wizardNextStep(ctx, next)
     } else {
@@ -180,12 +175,12 @@ export class RegisterController implements Controller {
   }
 
   private replyAvatarComposer = (): Composer<AppContext> => {
-    const handler = new Composer<AppContext>()
+    const composer = new Composer<AppContext>()
 
-    handler.on('photo', this.replyAvatarPhotoHandler)
-    handler.use(this.replyAvatarUnknownHandler)
+    composer.on('photo', this.replyAvatarPhotoHandler)
+    composer.use(this.replyAvatarUnknownHandler)
 
-    return handler
+    return composer
   }
 
   private replyAvatarPhotoHandler: AppContextHandler = async (ctx, next) => {
@@ -200,8 +195,6 @@ export class RegisterController implements Controller {
 
       if (isPhotoSize(photoSize)) {
         register.avatarTgFileId = photoSize.file_id
-
-        ctx.wizard.next()
 
         return wizardNextStep(ctx, next)
       } else {
@@ -227,12 +220,12 @@ export class RegisterController implements Controller {
   }
 
   private replyAboutComposer = (): Composer<AppContext> => {
-    const handler = new Composer<AppContext>()
+    const composer = new Composer<AppContext>()
 
-    handler.on('text', this.replyAboutTextHandler)
-    handler.use(this.replyAboutUnknownHandler)
+    composer.on('text', this.replyAboutTextHandler)
+    composer.use(this.replyAboutUnknownHandler)
 
-    return handler
+    return composer
   }
 
   private replyAboutTextHandler: AppContextHandler = async (ctx, next) => {
@@ -245,8 +238,6 @@ export class RegisterController implements Controller {
 
       if (isUserAbout(userAbout)) {
         register.about = userAbout
-
-        ctx.wizard.next()
 
         return wizardNextStep(ctx, next)
       } else {
@@ -281,10 +272,11 @@ export class RegisterController implements Controller {
     )
 
     initSessionAuthorize(ctx, user)
+    dropSceneSessionRegister(ctx)
 
     await ctx.scene.leave()
 
-    await replyMainMenu(ctx, authorize, navigation)
+    await replyMainMenu(ctx, user, navigation)
   }
 
   private exceptionHandler: AppContextExceptionHandler = async (error, ctx) => {

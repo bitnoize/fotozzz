@@ -27,10 +27,19 @@ export interface ChangeAbout {
   about: string
 }
 
-export interface NewPhoto {
+export interface NewPhotoPublish {
   tgFileId: string
   topicId: number
+  topicName: string
   description: string
+  groupTgChatId: number
+  groupTgThreadId: number
+  channelTgChatId: number
+}
+
+export interface NewPhoto extends NewPhotoPublish {
+  groupTgMessageId: number
+  channelTgMessageId: number
 }
 
 export interface AppWizardSession extends Scenes.WizardSessionData {
