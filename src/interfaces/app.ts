@@ -42,12 +42,18 @@ export interface NewPhoto extends NewPhotoPublish {
   channelTgMessageId: number
 }
 
+export interface DeletePhoto {
+  id: number
+  tgFileId: string
+  description: string
+}
+
 export interface AppWizardSession extends Scenes.WizardSessionData {
   register?: Partial<Register>
   changeAvatar?: Partial<ChangeAvatar>
   changeAbout?: Partial<ChangeAbout>
   newPhoto?: Partial<NewPhoto>
-  deletePhoto?: number
+  deletePhoto?: DeletePhoto
 }
 
 export interface Navigation {
@@ -81,7 +87,7 @@ export type AppContextHandler = (
 
 export type AppContextExceptionHandler = (
   error: unknown,
-  ctx: AppContext,
+  ctx: AppContext
 ) => Promise<unknown | void>
 
 export type PrepareMainHandler = (

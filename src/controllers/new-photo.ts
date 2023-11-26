@@ -3,8 +3,6 @@ import { message } from 'telegraf/filters'
 import {
   AppOptions,
   Controller,
-  NewPhoto,
-  Navigation,
   AppContext,
   AppContextHandler,
   AppContextExceptionHandler
@@ -28,8 +26,8 @@ import {
   replyNewPhotoDescription,
   replyNewPhotoDescriptionWrong,
   replyNewPhotoPublish,
-  replyNewPhotoGroup,
-  replyNewPhotoChannel
+  postNewPhotoGroup,
+  postNewPhotoChannel
 } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
 
@@ -66,11 +64,11 @@ export class NewPhotoController implements Controller {
     const allowedStatuses = ['active']
     if (allowedStatuses.includes(authorize.status)) {
       return wizardNextStep(ctx, next)
-    } else {
-      await ctx.scene.leave()
-
-      await replyMainMenu(ctx, authorize, navigation)
     }
+
+    await ctx.scene.leave()
+
+    await replyMainMenu(ctx, authorize, navigation)
   }
 
   private queryPhotoHandler: AppContextHandler = async (ctx) => {
@@ -258,11 +256,19 @@ export class NewPhotoController implements Controller {
       throw new Error(`scene session newPhoto data malformed`)
     }
 
-    newPhoto.groupTgMessageId =
-      await replyNewPhotoGroup(ctx, authorize, navigation, newPhoto)
-    
-    newPhoto.channelTgMessageId =
-      await replyNewPhotoChannel(ctx, authorize, navigation, newPhoto)
+    newPhoto.groupTgMessageId = await postNewPhotoGroup(
+      ctx,
+      authorize,
+      navigation,
+      newPhoto
+    )
+
+    newPhoto.channelTgMessageId = await postNewPhotoChannel(
+      ctx,
+      authorize,
+      navigation,
+      newPhoto
+    )
 
     return wizardNextStep(ctx, next)
   }
@@ -303,7 +309,7 @@ export class NewPhotoController implements Controller {
     await ctx.scene.enter('photo')
   }
 
-  private returnPhotoHandler: AppContextHandler = async (ctx, next) => {
+  private returnPhotoHandler: AppContextHandler = async (ctx) => {
     await ctx.scene.leave()
 
     await ctx.scene.enter('photo')

@@ -3,8 +3,6 @@ import { message } from 'telegraf/filters'
 import {
   AppOptions,
   Controller,
-  ChangeAbout,
-  Navigation,
   AppContext,
   AppContextHandler,
   AppContextExceptionHandler
@@ -54,11 +52,13 @@ export class ChangeAboutController implements Controller {
     const allowedStatuses = ['active', 'penalty']
     if (allowedStatuses.includes(authorize.status)) {
       return wizardNextStep(ctx, next)
-    } else {
-      await ctx.scene.leave()
-
-      await replyMainMenu(ctx, authorize, navigation)
     }
+
+    dropSceneSessionChangeAbout(ctx)
+
+    await ctx.scene.leave()
+
+    await replyMainMenu(ctx, authorize, navigation)
   }
 
   private queryAboutHandler: AppContextHandler = async (ctx) => {
@@ -114,10 +114,7 @@ export class ChangeAboutController implements Controller {
       throw new Error(`scene session changeAbout data malformed`)
     }
 
-    await this.postgresService.setUserAbout(
-      authorize.id,
-      changeAbout.about
-    )
+    await this.postgresService.setUserAbout(authorize.id, changeAbout.about)
 
     dropSceneSessionChangeAbout(ctx)
 
@@ -127,6 +124,8 @@ export class ChangeAboutController implements Controller {
   }
 
   private returnProfileHandler: AppContextHandler = async (ctx, next) => {
+    dropSceneSessionChangeAbout(ctx)
+
     await ctx.scene.leave()
 
     await ctx.scene.enter('profile')
@@ -138,6 +137,8 @@ export class ChangeAboutController implements Controller {
       console.error(error.stack)
       console.dir(ctx, { depth: 4 })
     }
+
+    dropSceneSessionChangeAbout(ctx)
 
     await ctx.scene.leave()
 

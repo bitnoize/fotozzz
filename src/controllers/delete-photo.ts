@@ -13,18 +13,16 @@ import {
   wizardNextStep,
   sureSessionAuthorize,
   sureSessionNavigation,
-  initSceneSessionChangeAvatar,
-  sureSceneSessionChangeAvatar,
-  dropSceneSessionChangeAvatar,
-  isChangeAvatar,
-  isPhotoSize,
+  initSceneSessionDeletePhoto,
+  sureSceneSessionDeletePhoto,
+  dropSceneSessionDeletePhoto,
   replyMainMenu,
   replyMainError,
-  replyChangeAvatarAvatar
+  replyDeletePhotoPhoto
 } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
 
-export class ChangeAvatarController implements Controller {
+export class DeletePhotoController implements Controller {
   scene: Scenes.WizardScene<AppContext>
 
   private redisService = RedisService.instance()
@@ -32,10 +30,10 @@ export class ChangeAvatarController implements Controller {
 
   constructor(private readonly options: AppOptions) {
     this.scene = new Scenes.WizardScene<AppContext>(
-      'change-avatar',
+      'delete-photo',
       this.startSceneHandler,
-      this.queryAvatarHandler,
-      this.replyAvatarComposer(),
+      this.queryPhotoHandler,
+      this.replyPhotoComposer(),
       this.finishSceneHandler
     )
 
@@ -46,103 +44,101 @@ export class ChangeAvatarController implements Controller {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
 
-    initSceneSessionChangeAvatar(ctx)
-
-    const allowedStatuses = ['active', 'penalty']
+    const allowedStatuses = ['active']
     if (allowedStatuses.includes(authorize.status)) {
-      return wizardNextStep(ctx, next)
+      const deletePhoto = ctx.scene.state.deletePhoto
+
+      if (deletePhoto !== undefined) {
+        const checkPhoto = await this.postgresService.checkPhotoUser(
+          deletePhoto.id,
+          authorize.id
+        )
+
+        if (checkPhoto) {
+          initSceneSessionDeletePhoto(ctx, deletePhoto)
+
+          return wizardNextStep(ctx, next)
+        }
+      }
     }
 
-    dropSceneSessionChangeAvatar(ctx)
+    dropSceneSessionDeletePhoto(ctx)
 
     await ctx.scene.leave()
 
     await replyMainMenu(ctx, authorize, navigation)
   }
 
-  private queryAvatarHandler: AppContextHandler = async (ctx) => {
+  private queryPhotoHandler: AppContextHandler = async (ctx) => {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
+    const deletePhoto = sureSceneSessionDeletePhoto(ctx)
 
-    await replyChangeAvatarAvatar(ctx, authorize, navigation)
+    await replyDeletePhotoPhoto(ctx, authorize, navigation, deletePhoto)
 
     ctx.wizard.next()
   }
 
-  private replyAvatarComposer = (): Composer<AppContext> => {
+  private replyPhotoComposer = (): Composer<AppContext> => {
     const composer = new Composer<AppContext>()
 
-    composer.on('photo', this.replyAvatarInputHandler)
-    composer.action('change-avatar-back', this.returnProfileHandler)
-    composer.use(this.replyAvatarUnknownHandler)
+    composer.action('delete-photo-next', this.replyPhotoInputHandler)
+    composer.action('delete-photo-back', this.returnPhotoHandler)
+    composer.use(this.replyPhotoUnknownHandler)
 
     return composer
   }
 
-  private replyAvatarInputHandler: AppContextHandler = async (ctx, next) => {
+  private replyPhotoInputHandler: AppContextHandler = async (ctx, next) => {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
-    const changeAvatar = sureSceneSessionChangeAvatar(ctx)
+    const deletePhoto = sureSceneSessionDeletePhoto(ctx)
 
-    if (ctx.has(message('photo'))) {
-      const photo = ctx.message.photo
-
-      const photoSize = photo.pop()
-
-      if (isPhotoSize(photoSize)) {
-        changeAvatar.avatarTgFileId = photoSize.file_id
-
-        return wizardNextStep(ctx, next)
-      } else {
-        await replyChangeAvatarAvatar(ctx, authorize, navigation)
-      }
-    }
+    return wizardNextStep(ctx, next)
   }
 
-  private replyAvatarUnknownHandler: AppContextHandler = async (ctx) => {
+  private replyPhotoUnknownHandler: AppContextHandler = async (ctx) => {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
+    const deletePhoto = sureSceneSessionDeletePhoto(ctx)
 
-    await replyChangeAvatarAvatar(ctx, authorize, navigation)
+    await replyDeletePhotoPhoto(ctx, authorize, navigation, deletePhoto)
   }
 
   private finishSceneHandler: AppContextHandler = async (ctx) => {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
-    const changeAvatar = sureSceneSessionChangeAvatar(ctx)
+    const deletePhoto = sureSceneSessionDeletePhoto(ctx)
 
-    if (!isChangeAvatar(changeAvatar)) {
-      throw new Error(`scene session changeAvatar data malformed`)
-    }
-
-    await this.postgresService.setUserAvatar(
+    const photo = await this.postgresService.deletePhotoUser(
+      deletePhoto.id,
       authorize.id,
-      changeAvatar.avatarTgFileId
+      ctx.from
     )
 
-    dropSceneSessionChangeAvatar(ctx)
+    dropSceneSessionDeletePhoto(ctx)
 
     await ctx.scene.leave()
 
-    await ctx.scene.enter('profile')
+    await ctx.scene.enter('photo')
   }
 
-  private returnProfileHandler: AppContextHandler = async (ctx, next) => {
-    dropSceneSessionChangeAvatar(ctx)
+  private returnPhotoHandler: AppContextHandler = async (ctx) => {
+    dropSceneSessionDeletePhoto(ctx)
 
     await ctx.scene.leave()
 
-    await ctx.scene.enter('profile')
+    await ctx.scene.enter('photo')
   }
 
   private exceptionHandler: AppContextExceptionHandler = async (error, ctx) => {
     if (error instanceof Error) {
-      logger.error(`ChangeAvatarScene error: ${error.message}`)
+      logger.error(`NewPhotoScene error: ${error.message}`)
       console.error(error.stack)
       console.dir(ctx, { depth: 4 })
     }
 
-    dropSceneSessionChangeAvatar(ctx)
+    dropSceneSessionDeletePhoto(ctx)
 
     await ctx.scene.leave()
 

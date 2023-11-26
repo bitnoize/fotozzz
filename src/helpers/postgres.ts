@@ -20,21 +20,16 @@ import {
   USER_GENDER_EMOJI_UNKNOWN
 } from '../constants/user.js'
 
-export const isRowId = (
-  rowId: unknown
-): rowId is RowId => {
+export const isRowId = (rowId: unknown): rowId is RowId => {
   return (
     rowId != null &&
     typeof rowId === 'object' &&
     'id' in rowId &&
-    (typeof rowId.id === 'number' ||
-      typeof rowId.id === 'string')
+    (typeof rowId.id === 'number' || typeof rowId.id === 'string')
   )
 }
 
-export const isRowCount = (
-  rowCount: unknown
-): rowCount is RowCount => {
+export const isRowCount = (rowCount: unknown): rowCount is RowCount => {
   return (
     rowCount != null &&
     typeof rowCount === 'object' &&
@@ -43,9 +38,7 @@ export const isRowCount = (
   )
 }
 
-export const isRowUser = (
-  rowUser: unknown
-): rowUser is RowUser => {
+export const isRowUser = (rowUser: unknown): rowUser is RowUser => {
   return (
     rowUser != null &&
     typeof rowUser === 'object' &&
@@ -54,11 +47,9 @@ export const isRowUser = (
     'tg_from_id' in rowUser &&
     typeof rowUser.tg_from_id === 'number' &&
     'nick' in rowUser &&
-    (rowUser.nick === null ||
-      typeof rowUser.nick === 'string') &&
+    (rowUser.nick === null || typeof rowUser.nick === 'string') &&
     'gender' in rowUser &&
-    (rowUser.gender === null ||
-      typeof rowUser.gender === 'string') &&
+    (rowUser.gender === null || typeof rowUser.gender === 'string') &&
     'status' in rowUser &&
     typeof rowUser.status === 'string' &&
     'role' in rowUser &&
@@ -88,9 +79,7 @@ export const buildUser = (rowUser: RowUser): User => {
   return user
 }
 
-export const isRowUserFull = (
-  rowUserFull: unknown
-): rowUserFull is RowUserFull => {
+export const isRowUserFull = (rowUserFull: unknown): rowUserFull is RowUserFull => {
   return (
     rowUserFull != null &&
     typeof rowUserFull === 'object' &&
@@ -99,11 +88,9 @@ export const isRowUserFull = (
     'tg_from_id' in rowUserFull &&
     typeof rowUserFull.tg_from_id === 'number' &&
     'nick' in rowUserFull &&
-    (rowUserFull.nick === null ||
-      typeof rowUserFull.nick === 'string') &&
+    (rowUserFull.nick === null || typeof rowUserFull.nick === 'string') &&
     'gender' in rowUserFull &&
-    (rowUserFull.gender === null ||
-      typeof rowUserFull.gender === 'string') &&
+    (rowUserFull.gender === null || typeof rowUserFull.gender === 'string') &&
     'status' in rowUserFull &&
     typeof rowUserFull.status === 'string' &&
     'role' in rowUserFull &&
@@ -112,8 +99,7 @@ export const isRowUserFull = (
     (rowUserFull.avatar_tg_file_id === null ||
       typeof rowUserFull.avatar_tg_file_id === 'string') &&
     'about' in rowUserFull &&
-    (rowUserFull.about === null ||
-      typeof rowUserFull.about === 'string') &&
+    (rowUserFull.about === null || typeof rowUserFull.about === 'string') &&
     'register_time' in rowUserFull &&
     typeof rowUserFull.register_time === 'object' &&
     rowUserFull.register_time instanceof Date &&
@@ -147,9 +133,7 @@ export const buildUserFull = (
   return userFull
 }
 
-export const isRowTopic = (
-  rowTopic: unknown
-): rowTopic is RowTopic => {
+export const isRowTopic = (rowTopic: unknown): rowTopic is RowTopic => {
   return (
     rowTopic != null &&
     typeof rowTopic === 'object' &&
@@ -185,9 +169,7 @@ export const buildTopic = (rowTopic: RowTopic): Topic => {
   return topic
 }
 
-export const isRowsTopics = (
-  rowsTopics: unknown
-): rowsTopics is RowTopic[] => {
+export const isRowsTopics = (rowsTopics: unknown): rowsTopics is RowTopic[] => {
   return (
     rowsTopics != null &&
     Array.isArray(rowsTopics) &&
@@ -199,9 +181,7 @@ export const buildTopics = (rowsTopics: RowTopic[]): Topic[] => {
   return rowsTopics.map((rowTopic) => buildTopic(rowTopic))
 }
 
-export const isRowPhoto = (
-  rowPhoto: unknown
-): rowPhoto is RowPhoto => {
+export const isRowPhoto = (rowPhoto: unknown): rowPhoto is RowPhoto => {
   return (
     rowPhoto != null &&
     typeof rowPhoto === 'object' &&
@@ -249,9 +229,7 @@ export const buildPhoto = (rowPhoto: RowPhoto): Photo => {
   return photo
 }
 
-export const isRowsPhotos = (
-  rowsPhotos: unknown
-): rowsPhotos is RowPhoto[] => {
+export const isRowsPhotos = (rowsPhotos: unknown): rowsPhotos is RowPhoto[] => {
   return (
     rowsPhotos != null &&
     Array.isArray(rowsPhotos) &&
@@ -263,9 +241,7 @@ export const buildPhotos = (rowsPhotos: RowPhoto[]): Photo[] => {
   return rowsPhotos.map((rowPhoto) => buildPhoto(rowPhoto))
 }
 
-export const isRowComment = (
-  rowComment: unknown
-): rowComment is RowComment => {
+export const isRowComment = (rowComment: unknown): rowComment is RowComment => {
   return (
     rowComment != null &&
     typeof rowComment === 'object' &&

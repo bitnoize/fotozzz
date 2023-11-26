@@ -1,11 +1,9 @@
-import { Scenes, session, Telegraf, Markup } from 'telegraf'
+import { Scenes, session, Telegraf } from 'telegraf'
 import { Redis } from '@telegraf/session/redis'
 import { HttpsProxyAgent } from 'hpagent'
 import {
   AppOptions,
   Controller,
-  Navigation,
-  Membership,
   AppContext,
   AppSession,
   AppContextHandler,
@@ -19,6 +17,8 @@ import { ChangeAvatarController } from './controllers/change-avatar.js'
 import { ChangeAboutController } from './controllers/change-about.js'
 import { PhotoController } from './controllers/photo.js'
 import { NewPhotoController } from './controllers/new-photo.js'
+import { DeletePhotoController } from './controllers/delete-photo.js'
+import { SearchController } from './controllers/search.js'
 import {
   blankNavigation,
   resetNavigation,
@@ -31,7 +31,7 @@ import {
   sureSessionMembership,
   replyMainCheckGroup,
   replyMainCheckChannel,
-  replyMainMenu,
+  replyMainMenu
 } from './helpers/telegram.js'
 import { logger } from './logger.js'
 
@@ -72,6 +72,8 @@ export class App {
     controllers.push(new ChangeAboutController(this.options))
     controllers.push(new PhotoController(this.options))
     controllers.push(new NewPhotoController(this.options))
+    controllers.push(new DeletePhotoController(this.options))
+    controllers.push(new SearchController(this.options))
 
     const stage = new Scenes.Stage<AppContext>(
       controllers.map((controller) => controller.scene)
@@ -116,15 +118,15 @@ export class App {
       const { id: fromId, is_bot: fromIsBot } = ctx.from
 
       //if (!fromIsBot) {
-        const user = await this.postgresService.authorizeUser(fromId, ctx.from)
+      const user = await this.postgresService.authorizeUser(fromId, ctx.from)
 
-        if (user.status !== 'banned') {
-          initSessionAuthorize(ctx, user)
+      if (user.status !== 'banned') {
+        initSessionAuthorize(ctx, user)
 
-          await next()
-        } else {
-          logger.info(`Authorize: ignore banned user ${user.id}`)
-        }
+        await next()
+      } else {
+        logger.info(`Authorize: ignore banned user ${user.id}`)
+      }
       //} else {
       //  logger.info(`Authorize: ignore bot ${fromId}`)
       //}
@@ -162,7 +164,10 @@ export class App {
 
         membership.checkGroup = allowedStatuses.includes(groupMember.status)
 
-        const channelMember = await ctx.telegram.getChatMember(channelChatId, fromId)
+        const channelMember = await ctx.telegram.getChatMember(
+          channelChatId,
+          fromId
+        )
 
         membership.checkChannel = allowedStatuses.includes(channelMember.status)
       }
@@ -207,7 +212,7 @@ export class App {
     const navigation = sureSessionNavigation(ctx)
     const membership = sureSessionMembership(ctx)
 
-    resetNavigation(navigation)
+    //resetNavigation(navigation)
 
     if (authorize.status === 'register') {
       await ctx.scene.enter('register')
@@ -226,14 +231,11 @@ export class App {
     const { groupChatId, channelChatId } = this.options
 
     if (ctx.chatJoinRequest !== undefined) {
-      const { id: chatId } =  ctx.chatJoinRequest.chat
-      const { id: fromId } =  ctx.chatJoinRequest.from
+      const { id: chatId } = ctx.chatJoinRequest.chat
+      const { id: fromId } = ctx.chatJoinRequest.from
 
       if (chatId === groupChatId || chatId === channelChatId) {
-        const isSuccess = await ctx.telegram.approveChatJoinRequest(
-          chatId,
-          fromId
-        )
+        const isSuccess = await ctx.telegram.approveChatJoinRequest(chatId, fromId)
 
         if (isSuccess) {
           logger.info(`ChatJoinRequest: success user: ${fromId}`)

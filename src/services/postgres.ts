@@ -40,9 +40,8 @@ export class PostgresService {
       allowExitOnIdle: true
     })
 
-    pg.types.setTypeParser(
-      pg.types.builtins.INT8,
-      (value: string): number => parseInt(value)
+    pg.types.setTypeParser(pg.types.builtins.INT8, (value: string): number =>
+      parseInt(value)
     )
 
     logger.info(`PostgresService initialized`)
@@ -80,10 +79,11 @@ export class PostgresService {
       )
 
       if (resultSelectUserExists.rowCount === 0) {
-        const resultInsertUser = await client.query(
-          this.insertUserSql,
-          [tgId, 'register', 'user']
-        )
+        const resultInsertUser = await client.query(this.insertUserSql, [
+          tgId,
+          'register',
+          'user'
+        ])
 
         const rowInsertUser = resultInsertUser.rows.shift()
         if (!isRowId(rowInsertUser)) {
@@ -100,17 +100,14 @@ export class PostgresService {
           throw new Error(`select user malformed result`)
         }
 
-        await client.query(
-          this.insertUserLogSql,
-          [
-            rowSelectUser.id,
-            rowSelectUser.id,
-            'user_register',
-            rowSelectUser.status,
-            rowSelectUser.role,
-            { from }
-          ]
-        )
+        await client.query(this.insertUserLogSql, [
+          rowSelectUser.id,
+          rowSelectUser.id,
+          'user_register',
+          rowSelectUser.status,
+          rowSelectUser.role,
+          { from }
+        ])
 
         user = buildUser(rowSelectUser)
       } else {
@@ -182,53 +179,45 @@ export class PostgresService {
         throw new Error(`only register user can be activated`)
       }
 
-      const resultSelectUserNick = await client.query(
-        this.selectUserByNickSql,
-        [nick]
-      )
+      const resultSelectUserNick = await client.query(this.selectUserByNickSql, [
+        nick
+      ])
 
       if (resultSelectUserNick.rowCount !== 0) {
         throw new Error(`user nick allready used`)
       }
 
-      const resultUpdateUser = await client.query(
-        this.updateUserActivateSql,
-        [
-          rowSelectUserExists.id,
-          nick,
-          gender,
-          'active',
-          avatarTgFileId,
-          about
-        ]
-      )
+      const resultUpdateUser = await client.query(this.updateUserActivateSql, [
+        rowSelectUserExists.id,
+        nick,
+        gender,
+        'active',
+        avatarTgFileId,
+        about
+      ])
 
       const rowUpdateUser = resultUpdateUser.rows.shift()
       if (!isRowId(rowUpdateUser)) {
         throw new Error(`update user malformed result`)
       }
 
-      const resultSelectUser = await client.query(
-        this.selectUserByIdForShareSql,
-        [rowUpdateUser.id]
-      )
+      const resultSelectUser = await client.query(this.selectUserByIdForShareSql, [
+        rowUpdateUser.id
+      ])
 
       const rowSelectUser = resultSelectUser.rows.shift()
       if (!isRowUser(rowSelectUser)) {
         throw new Error(`select user malformed result`)
       }
 
-      await client.query(
-        this.insertUserLogSql,
-        [
-          rowSelectUser.id,
-          rowSelectUser.id,
-          'user_activate',
-          rowSelectUser.status,
-          rowSelectUser.role,
-          { from }
-        ]
-      )
+      await client.query(this.insertUserLogSql, [
+        rowSelectUser.id,
+        rowSelectUser.id,
+        'user_activate',
+        rowSelectUser.status,
+        rowSelectUser.role,
+        { from }
+      ])
 
       const user = buildUser(rowSelectUser)
 
@@ -248,10 +237,7 @@ export class PostgresService {
     const client = await this.pool.connect()
 
     try {
-      const resultSelectUser = await client.query(
-        this.selectUserFullByIdSql,
-        [id]
-      )
+      const resultSelectUser = await client.query(this.selectUserFullByIdSql, [id])
 
       if (resultSelectUser.rowCount === 0) {
         throw new Error(`expected user does not exists`)
@@ -296,10 +282,7 @@ export class PostgresService {
     }
   }
 
-  async setUserAvatar(
-    id: number,
-    avatarTgFileId: string
-  ): Promise<void> {
+  async setUserAvatar(id: number, avatarTgFileId: string): Promise<void> {
     const client = await this.pool.connect()
 
     try {
@@ -323,10 +306,10 @@ export class PostgresService {
         throw new Error(`only active user can update avatar`)
       }
 
-      const resultUpdateUser = await client.query(
-        this.updateUserAvatarSql,
-        [rowSelectUserExists.id, avatarTgFileId]
-      )
+      const resultUpdateUser = await client.query(this.updateUserAvatarSql, [
+        rowSelectUserExists.id,
+        avatarTgFileId
+      ])
 
       const rowUpdateUser = resultUpdateUser.rows.shift()
       if (!isRowId(rowUpdateUser)) {
@@ -367,10 +350,10 @@ export class PostgresService {
         throw new Error(`only active user can update about`)
       }
 
-      const resultUpdateUser = await client.query(
-        this.updateUserAboutSql,
-        [rowSelectUserExists.id, about]
-      )
+      const resultUpdateUser = await client.query(this.updateUserAboutSql, [
+        rowSelectUserExists.id,
+        about
+      ])
 
       const rowUpdateUser = resultUpdateUser.rows.shift()
       if (!isRowId(rowUpdateUser)) {
@@ -427,10 +410,9 @@ export class PostgresService {
     try {
       await client.query('BEGIN')
 
-      const resultSelectUser = await client.query(
-        this.selectUserByIdForShareSql,
-        [userId]
-      )
+      const resultSelectUser = await client.query(this.selectUserByIdForShareSql, [
+        userId
+      ])
 
       if (resultSelectUser.rowCount === 0) {
         throw new Error(`expected user does not exists`)
@@ -463,20 +445,17 @@ export class PostgresService {
         throw new Error(`only in available topic can create photo`)
       }
 
-      const resultInsertPhoto = await client.query(
-        this.insertPhotoSql,
-        [
-          rowSelectUser.id,
-          rowSelectTopic.id,
-          groupTgChatId,
-          groupTgMessageId,
-          channelTgChatId,
-          channelTgMessageId,
-          tgFileId,
-          description,
-          'published'
-        ]
-      )
+      const resultInsertPhoto = await client.query(this.insertPhotoSql, [
+        rowSelectUser.id,
+        rowSelectTopic.id,
+        groupTgChatId,
+        groupTgMessageId,
+        channelTgChatId,
+        channelTgMessageId,
+        tgFileId,
+        description,
+        'published'
+      ])
 
       const rowInsertPhoto = resultInsertPhoto.rows.shift()
       if (!isRowId(rowInsertPhoto)) {
@@ -493,16 +472,13 @@ export class PostgresService {
         throw new Error(`select photo malformed result`)
       }
 
-      await client.query(
-        this.insertPhotoLogSql,
-        [
-          rowSelectPhoto.id,
-          rowSelectPhoto.user_id,
-          'photo_publish',
-          rowSelectPhoto.status,
-          { from }
-        ]
-      )
+      await client.query(this.insertPhotoLogSql, [
+        rowSelectPhoto.id,
+        rowSelectPhoto.user_id,
+        'photo_publish',
+        rowSelectPhoto.status,
+        { from }
+      ])
 
       const photo = buildPhoto(rowSelectPhoto)
 
@@ -522,6 +498,70 @@ export class PostgresService {
     const client = await this.pool.connect()
 
     try {
+      const resultSelectUser = await client.query(this.selectUserByIdForShareSql, [
+        userId
+      ])
+
+      if (resultSelectUser.rowCount === 0) {
+        throw new Error(`expected user does not exists`)
+      }
+
+      const rowSelectUser = resultSelectUser.rows.shift()
+      if (!isRowUser(rowSelectUser)) {
+        throw new Error(`select user malformed result`)
+      }
+
+      if (rowSelectUser.status !== 'active') {
+        throw new Error(`select photos only for active user`)
+      }
+
+      const resultSelectPhotos = await client.query(this.selectPhotosByUserIdSql, [
+        rowSelectUser.id,
+        'published'
+      ])
+
+      const rowsSelectPhotos = resultSelectPhotos.rows
+      if (!isRowsPhotos(rowsSelectPhotos)) {
+        throw new Error(`select photos malformed result`)
+      }
+
+      const photos = buildPhotos(rowsSelectPhotos)
+
+      return photos
+    } catch (error) {
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  async checkPhotoUser(id: number, userId: number): Promise<boolean> {
+    const client = await this.pool.connect()
+
+    try {
+      const resultSelectPhoto = await client.query(
+        this.selectPhotoByIdUserIdSql,
+        [id, userId]
+      )
+
+      return resultSelectPhoto.rowCount === 0 ? false : true
+    } catch (error) {
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  async deletePhotoUser(
+    photoId: number,
+    userId: number,
+    from: unknown
+  ): Promise<void> {
+    const client = await this.pool.connect()
+
+    try {
+      await client.query('BEGIN')
+
       const resultSelectUser = await client.query(
         this.selectUserByIdForShareSql,
         [userId]
@@ -537,23 +577,49 @@ export class PostgresService {
       }
 
       if (rowSelectUser.status !== 'active') {
-        throw new Error(`select photos only for active user`)
+        throw new Error(`only active user can delete photo`)
       }
 
-      const resultSelectPhotos = await client.query(
-        this.selectPhotosByUserIdSql,
-        [rowSelectUser.id, 'published']
+      const resultSelectPhoto = await client.query(
+        this.selectPhotoByIdUserIdForUpdateSql,
+        [photoId, userId]
       )
 
-      const rowsSelectPhotos = resultSelectPhotos.rows
-      if (!isRowsPhotos(rowsSelectPhotos)) {
-        throw new Error(`select photos malformed result`)
+      if (resultSelectPhoto.rowCount === 0) {
+        throw new Error(`expected photo does not exists`)
       }
 
-      const photos = buildPhotos(rowsSelectPhotos)
+      const rowSelectPhoto = resultSelectPhoto.rows.shift()
+      if (!isRowPhoto(rowSelectPhoto)) {
+        throw new Error(`select photo malformed result`)
+      }
 
-      return photos
+      if (rowSelectPhoto.status !== 'published') {
+        throw new Error(`only published photo can be deleted`)
+      }
+
+      const resultUpdatePhoto = await client.query(
+        this.updatePhotoStatusSql,
+        [rowSelectPhoto.id, 'deleted']
+      )
+
+      const rowUpdatePhoto = resultUpdatePhoto.rows.shift()
+      if (!isRowId(rowUpdatePhoto)) {
+        throw new Error(`update photo malformed result`)
+      }
+
+      await client.query(this.insertPhotoLogSql, [
+        rowSelectPhoto.id,
+        rowSelectPhoto.user_id,
+        'photo_delete',
+        rowSelectPhoto.status,
+        { from }
+      ])
+
+      await client.query('COMMIT')
     } catch (error) {
+      await client.query('ROLLBACK')
+
       throw error
     } finally {
       client.release()
@@ -573,10 +639,9 @@ export class PostgresService {
     try {
       await client.query('BEGIN')
 
-      const resultSelectUser = await client.query(
-        this.selectUserByIdForShareSql,
-        [userId]
-      )
+      const resultSelectUser = await client.query(this.selectUserByIdForShareSql, [
+        userId
+      ])
 
       if (resultSelectUser.rowCount === 0) {
         throw new Error(`expected user does not exists`)
@@ -627,18 +692,15 @@ export class PostgresService {
         throw new Error(`only for published photo can create comment`)
       }
 
-      const resultInsertComment = await client.query(
-        this.insertCommentSql,
-        [
-          rowSelectUser.id,
-          rowSelectTopic.id,
-          rowSelectPhoto.id,
-          tgId,
-          'published',
-          text,
-          { from }
-        ]
-      )
+      const resultInsertComment = await client.query(this.insertCommentSql, [
+        rowSelectUser.id,
+        rowSelectTopic.id,
+        rowSelectPhoto.id,
+        tgId,
+        'published',
+        text,
+        { from }
+      ])
 
       const rowInsertComment = resultInsertComment.rows.shift()
       if (!isRowId(rowInsertComment)) {
@@ -655,21 +717,15 @@ export class PostgresService {
         throw new Error(`select comment malformed result`)
       }
 
-      await client.query(
-        this.updateUserLastActivityTimeSql,
-        [rowSelectUser.id]
-      )
+      await client.query(this.updateUserLastActivityTimeSql, [rowSelectUser.id])
 
-      await client.query(
-        this.insertCommentLogSql,
-        [
-          rowSelectComment.id,
-          rowSelectComment.user_id,
-          'comment_create',
-          rowSelectComment.status,
-          { from }
-        ]
-      )
+      await client.query(this.insertCommentLogSql, [
+        rowSelectComment.id,
+        rowSelectComment.user_id,
+        'comment_create',
+        rowSelectComment.status,
+        { from }
+      ])
 
       const comment = buildComment(rowSelectComment)
 
@@ -689,10 +745,9 @@ export class PostgresService {
     const client = await this.pool.connect()
 
     try {
-      const resultSelectUser = await client.query(
-        this.selectUserByIdForShareSql,
-        [userId]
-      )
+      const resultSelectUser = await client.query(this.selectUserByIdForShareSql, [
+        userId
+      ])
 
       if (resultSelectUser.rowCount === 0) {
         throw new Error(`expected user does not exists`)
@@ -864,6 +919,16 @@ WHERE id = $1
 FOR SHARE
 `
 
+  private readonly selectPhotoByIdUserIdForUpdateSql = `
+SELECT
+  id, user_id, topic_id, group_tg_chat_id, group_tg_message_id,
+  channel_tg_chat_id, channel_tg_message_id, tg_file_id,
+  description, status, create_time
+FROM photos
+WHERE id = $1 and user_id = $2
+FOR UPDATE
+`
+
   private readonly selectPhotoByIdForUpdateSql = `
 SELECT
   id, user_id, topic_id, group_tg_chat_id, group_tg_message_id,
@@ -872,6 +937,15 @@ SELECT
 FROM photos
 WHERE id = $1
 FOR UPDATE
+`
+
+  private readonly selectPhotoByIdUserIdSql = `
+SELECT
+  id, user_id, topic_id, group_tg_chat_id, group_tg_message_id,
+  channel_tg_chat_id, channel_tg_message_id, tg_file_id,
+  description, status, create_time
+FROM photos
+WHERE id = $1 AND user_id = $2
 `
 
   private readonly selectPhotosByUserIdSql = `
@@ -903,8 +977,8 @@ RETURNING id
 
   private readonly updatePhotoStatusSql = `
 UPDATE photos SET
-  status = $1
-WHERE id = $2
+  status = $2
+WHERE id = $1
 RETURNING id
 `
 

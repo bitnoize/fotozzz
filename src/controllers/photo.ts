@@ -1,10 +1,10 @@
-import { Scenes, Composer } from 'telegraf'
+import { Scenes } from 'telegraf'
 import { message } from 'telegraf/filters'
 import {
   AppOptions,
   Controller,
-  Navigation,
   AppContext,
+  DeletePhoto,
   AppContextHandler,
   AppContextExceptionHandler
 } from '../interfaces/app.js'
@@ -16,7 +16,6 @@ import {
   navigationPrevPage,
   sureSessionAuthorize,
   sureSessionNavigation,
-  initSceneSessionDeletePhoto,
   replyMainMenu,
   replyMainError,
   replyPhotoMenu
@@ -37,16 +36,18 @@ export class PhotoController implements Controller {
     this.scene.action('photo-prev', this.prevPhotoHandler)
     this.scene.action('photo-next', this.nextPhotoHandler)
     this.scene.action('photo-new', this.newPhotoHandler)
-    this.scene.action(/^photo-delete-photo-(\d+)$/, this.deletePhotoHandler)
+    this.scene.action(/^photo-delete-(\d+)$/, this.deletePhotoHandler)
     this.scene.action('photo-back', this.returnMainHandler)
 
     this.scene.use(this.enterSceneHandler)
     this.scene.use(Scenes.BaseScene.catch(this.exceptionHandler))
   }
 
-  private enterSceneHandler = async (ctx: AppContext): Promise<void> => {
+  private enterSceneHandler: AppContextHandler = async (ctx) => {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
+
+    resetNavigation(navigation)
 
     const allowedStatuses = ['active', 'penalty']
     if (allowedStatuses.includes(authorize.status)) {
@@ -54,15 +55,13 @@ export class PhotoController implements Controller {
 
       await replyPhotoMenu(ctx, authorize, navigation, photos)
     } else {
-      resetNavigation(navigation)
-
       await ctx.scene.leave()
 
       await replyMainMenu(ctx, authorize, navigation)
     }
   }
 
-  private prevPhotoHandler = async (ctx: AppContext): Promise<void> => {
+  private prevPhotoHandler: AppContextHandler = async (ctx) => {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
 
@@ -73,7 +72,7 @@ export class PhotoController implements Controller {
     await replyPhotoMenu(ctx, authorize, navigation, photos)
   }
 
-  private nextPhotoHandler = async (ctx: AppContext): Promise<void> => {
+  private nextPhotoHandler: AppContextHandler = async (ctx) => {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
 
@@ -84,7 +83,7 @@ export class PhotoController implements Controller {
     await replyPhotoMenu(ctx, authorize, navigation, photos)
   }
 
-  private deletePhotoHandler = async (ctx: AppContext): Promise<void> => {
+  private deletePhotoHandler: AppContextHandler = async (ctx) => {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
 
@@ -92,24 +91,30 @@ export class PhotoController implements Controller {
 
     const photoId = parseInt(ctx.match[1])
 
-    if (
-      photoId != null &&
-      typeof photoId === 'number' &&
-      photos.map((photo) => photo.id).indexOf(photoId) != -1
-    ) {
-      resetNavigation(navigation)
+    if (photoId != null && typeof photoId === 'number') {
+      const photo = photos.find((photo) => photo.id === photoId)
 
-      initSceneSessionDeletePhoto(ctx, photoId)
+      if (photo !== undefined) {
+        const deletePhoto: DeletePhoto = {
+          id: photo.id,
+          tgFileId: photo.tgFileId,
+          description: photo.description
+        }
 
-      await ctx.scene.leave()
+        resetNavigation(navigation)
 
-      await ctx.scene.enter('delete-photo')
+        await ctx.scene.leave()
+
+        await ctx.scene.enter('delete-photo', { deletePhoto })
+      } else {
+        throw new Error(`can't find photo`)
+      }
     } else {
       await replyPhotoMenu(ctx, authorize, navigation, photos)
     }
   }
 
-  private newPhotoHandler = async (ctx: AppContext): Promise<void> => {
+  private newPhotoHandler: AppContextHandler = async (ctx) => {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
 
@@ -120,7 +125,7 @@ export class PhotoController implements Controller {
     await ctx.scene.enter('new-photo')
   }
 
-  private returnMainHandler = async (ctx: AppContext): Promise<void> => {
+  private returnMainHandler: AppContextHandler = async (ctx) => {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
 

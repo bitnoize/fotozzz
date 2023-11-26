@@ -10,28 +10,30 @@ import {
 import { RedisService } from '../services/redis.js'
 import { PostgresService } from '../services/postgres.js'
 import {
+  resetNavigation,
+  navigationNextPage,
+  navigationPrevPage,
   sureSessionAuthorize,
   sureSessionNavigation,
   replyMainMenu,
   replyMainError,
-  replyProfileMenu
+  replySearchIntro
 } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
 
-export class ProfileController implements Controller {
+export class SearchController implements Controller {
   scene: Scenes.BaseScene<AppContext>
 
   private redisService = RedisService.instance()
   private postgresService = PostgresService.instance()
 
   constructor(private readonly options: AppOptions) {
-    this.scene = new Scenes.BaseScene<AppContext>('profile')
+    this.scene = new Scenes.BaseScene<AppContext>('search')
 
     this.scene.enter(this.enterSceneHandler)
 
-    this.scene.action('profile-change-avatar', this.changeAvatarHandler)
-    this.scene.action('profile-change-about', this.changeAboutHandler)
-    this.scene.action('profile-back', this.returnMainHandler)
+    //this.scene.on('text', this.searchTextHandler)
+    this.scene.action('search-back', this.returnMainHandler)
 
     this.scene.use(this.enterSceneHandler)
     this.scene.use(Scenes.BaseScene.catch(this.exceptionHandler))
@@ -43,9 +45,7 @@ export class ProfileController implements Controller {
 
     const allowedStatuses = ['active', 'penalty']
     if (allowedStatuses.includes(authorize.status)) {
-      const userFull = await this.postgresService.getUserFull(authorize.id)
-
-      await replyProfileMenu(ctx, authorize, navigation, userFull)
+      await replySearchIntro(ctx, authorize, navigation)
     } else {
       await ctx.scene.leave()
 
@@ -53,21 +53,11 @@ export class ProfileController implements Controller {
     }
   }
 
-  private changeAvatarHandler: AppContextHandler = async (ctx) => {
-    await ctx.scene.leave()
-
-    await ctx.scene.enter('change-avatar')
-  }
-
-  private changeAboutHandler = async (ctx: AppContext): Promise<void> => {
-    await ctx.scene.leave()
-
-    await ctx.scene.enter('change-about')
-  }
-
   private returnMainHandler: AppContextHandler = async (ctx) => {
     const authorize = sureSessionAuthorize(ctx)
     const navigation = sureSessionNavigation(ctx)
+
+    resetNavigation(navigation)
 
     await ctx.scene.leave()
 
@@ -76,7 +66,7 @@ export class ProfileController implements Controller {
 
   private exceptionHandler: AppContextExceptionHandler = async (error, ctx) => {
     if (error instanceof Error) {
-      logger.error(`ProfileScene error: ${error.message}`)
+      logger.error(`SearchScene error: ${error.message}`)
       console.error(error.stack)
       console.dir(ctx, { depth: 4 })
     }

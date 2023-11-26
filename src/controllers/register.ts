@@ -68,11 +68,13 @@ export class RegisterController implements Controller {
 
     if (authorize.status === 'register') {
       return wizardNextStep(ctx, next)
-    } else {
-      await ctx.scene.leave()
-
-      await replyMainMenu(ctx, authorize, navigation)
     }
+
+    dropSceneSessionRegister(ctx)
+
+    await ctx.scene.leave()
+
+    await replyMainMenu(ctx, authorize, navigation)
   }
 
   private queryNickHandler: AppContextHandler = async (ctx) => {
@@ -285,6 +287,8 @@ export class RegisterController implements Controller {
       console.error(error.stack)
       console.dir(ctx, { depth: 4 })
     }
+
+    dropSceneSessionRegister(ctx)
 
     await ctx.scene.leave()
 
