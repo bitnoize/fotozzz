@@ -124,6 +124,7 @@ CREATE TABLE photos (
   user_id               INTEGER NOT NULL,
   topic_id              SMALLINT NOT NULL,
   group_tg_chat_id      BIGINT NOT NULL,
+  group_tg_thread_id    BIGINT NOT NULL,
   group_tg_message_id   BIGINT NOT NULL,
   channel_tg_chat_id    BIGINT NOT NULL,
   channel_tg_message_id BIGINT NOT NULL,
@@ -135,7 +136,7 @@ CREATE TABLE photos (
   PRIMARY KEY(id),
   FOREIGN KEY(user_id) REFERENCES users(id),
   FOREIGN KEY(topic_id) REFERENCES topics(id),
-  UNIQUE(group_tg_chat_id, group_tg_message_id),
+  UNIQUE(group_tg_chat_id, group_tg_thread_id, group_tg_message_id),
   UNIQUE(channel_tg_chat_id, channel_tg_message_id)
 );
 
@@ -187,7 +188,7 @@ CREATE TABLE rates (
   FOREIGN KEY(user_id) REFERENCES users(id),
   FOREIGN KEY(topic_id) REFERENCES topics(id),
   FOREIGN KEY(photo_id) REFERENCES photos(id),
-  UNIQUE(user_id, topic_id, photo_id)
+  UNIQUE(user_id, photo_id)
 );
 
 GRANT SELECT, INSERT, UPDATE ON rates TO fotozzz_app;
@@ -196,7 +197,7 @@ GRANT USAGE, SELECT ON rates_id_seq TO fotozzz_app;
 CREATE INDEX rates_user_id_key ON rates (user_id);
 CREATE INDEX rates_topic_id_key ON rates (topic_id);
 CREATE INDEX rates_photo_id_key ON rates (photo_id);
-CREATE INDEX rates_value_key ON rates (value);
+--CREATE INDEX rates_value_key ON rates (value);
 CREATE INDEX rates_create_time_key ON rates (create_time);
 
 CREATE TABLE rate_logs (

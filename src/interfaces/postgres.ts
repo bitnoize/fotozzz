@@ -57,6 +57,7 @@ export interface RowPhoto {
   user_id: number
   topic_id: number
   group_tg_chat_id: number
+  group_tg_thread_id: number
   group_tg_message_id: number
   channel_tg_chat_id: number
   channel_tg_message_id: number
@@ -73,6 +74,11 @@ export interface RowRate {
   photo_id: number
   value: RateValue
   create_time: Date
+}
+
+export interface RowRateAgg {
+  count: number
+  value: string
 }
 
 export interface RowComment {

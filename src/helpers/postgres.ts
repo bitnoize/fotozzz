@@ -6,12 +6,13 @@ import {
   RowTopic,
   RowPhoto,
   RowRate,
+  RowRateAgg,
   RowComment
 } from '../interfaces/postgres.js'
 import { UserGender, User, UserFull } from '../interfaces/user.js'
 import { Topic } from '../interfaces/topic.js'
 import { Photo } from '../interfaces/photo.js'
-import { Rate } from '../interfaces/rate.js'
+import { Rate, RateAgg } from '../interfaces/rate.js'
 import { Comment } from '../interfaces/comment.js'
 import {
   USER_NICK_UNKNOWN,
@@ -193,6 +194,8 @@ export const isRowPhoto = (rowPhoto: unknown): rowPhoto is RowPhoto => {
     typeof rowPhoto.topic_id === 'number' &&
     'group_tg_chat_id' in rowPhoto &&
     typeof rowPhoto.group_tg_chat_id === 'number' &&
+    'group_tg_thread_id' in rowPhoto &&
+    typeof rowPhoto.group_tg_thread_id === 'number' &&
     'group_tg_message_id' in rowPhoto &&
     typeof rowPhoto.group_tg_message_id === 'number' &&
     'channel_tg_chat_id' in rowPhoto &&
@@ -217,6 +220,7 @@ export const buildPhoto = (rowPhoto: RowPhoto): Photo => {
     userId: rowPhoto.user_id,
     topicId: rowPhoto.topic_id,
     groupTgChatId: rowPhoto.group_tg_chat_id,
+    groupTgThreadId: rowPhoto.group_tg_thread_id,
     groupTgMessageId: rowPhoto.group_tg_message_id,
     channelTgChatId: rowPhoto.channel_tg_chat_id,
     channelTgMessageId: rowPhoto.channel_tg_message_id,
@@ -239,6 +243,73 @@ export const isRowsPhotos = (rowsPhotos: unknown): rowsPhotos is RowPhoto[] => {
 
 export const buildPhotos = (rowsPhotos: RowPhoto[]): Photo[] => {
   return rowsPhotos.map((rowPhoto) => buildPhoto(rowPhoto))
+}
+
+export const isRowRate = (rowRate: unknown): rowRate is RowRate => {
+  return (
+    rowRate != null &&
+    typeof rowRate === 'object' &&
+    'id' in rowRate &&
+    typeof rowRate.id === 'number' &&
+    'user_id' in rowRate &&
+    typeof rowRate.user_id === 'number' &&
+    'topic_id' in rowRate &&
+    typeof rowRate.topic_id === 'number' &&
+    'photo_id' in rowRate &&
+    typeof rowRate.photo_id === 'number' &&
+    'value' in rowRate &&
+    typeof rowRate.value === 'string' &&
+    'create_time' in rowRate &&
+    typeof rowRate.create_time === 'object' &&
+    rowRate.create_time instanceof Date
+  )
+}
+
+export const buildRate = (rowRate: RowRate): Rate => {
+  const rate: Rate = {
+    id: rowRate.id,
+    userId: rowRate.user_id,
+    topicId: rowRate.topic_id,
+    photoId: rowRate.photo_id,
+    value: rowRate.value,
+    createTime: rowRate.create_time
+  }
+
+  return rate
+}
+
+export const isRowRateAgg = (rowRateAgg: unknown): rowRateAgg is RowRateAgg => {
+  return (
+    rowRateAgg != null &&
+    typeof rowRateAgg === 'object' &&
+    'count' in rowRateAgg &&
+    typeof rowRateAgg.count === 'number' &&
+    'value' in rowRateAgg &&
+    typeof rowRateAgg.value === 'string'
+  )
+}
+
+export const buildRateAgg = (rowRateAgg: RowRateAgg): RateAgg => {
+  const rateAgg: RateAgg = {
+    count: rowRateAgg.count,
+    value: rowRateAgg.value,
+  }
+
+  return rateAgg
+}
+
+export const isRowsRatesAgg = (
+  rowsRatesAgg: unknown
+): rowsRatesAgg is RowRateAgg[] => {
+  return (
+    rowsRatesAgg != null &&
+    Array.isArray(rowsRatesAgg) &&
+    rowsRatesAgg.every((rowRateAgg) => isRowRateAgg(rowRateAgg))
+  )
+}
+
+export const buildRatesAgg = (rowsRatesAgg: RowRateAgg[]): RateAgg[] => {
+  return rowsRatesAgg.map((rowRateAgg) => buildRateAgg(rowRateAgg))
 }
 
 export const isRowComment = (rowComment: unknown): rowComment is RowComment => {

@@ -63,7 +63,13 @@ export class NewPhotoController implements Controller {
 
     const allowedStatuses = ['active']
     if (allowedStatuses.includes(authorize.status)) {
-      return wizardNextStep(ctx, next)
+      const expire = await this.redisService.checkPhotoRateLimit(authorize.id)
+
+      if (expire === 0) {
+        return wizardNextStep(ctx, next)
+      } else {
+        ctx.reply(`Лимит новых фото в день исчерпан`)
+      }
     }
 
     await ctx.scene.leave()
@@ -256,6 +262,11 @@ export class NewPhotoController implements Controller {
       throw new Error(`scene session newPhoto data malformed`)
     }
 
+    const expire = await this.redisService.updatePhotoRateLimit(authorize.id)
+    if (expire !== 0) {
+      throw new Error(`photos limit exceed`)
+    }
+
     newPhoto.groupTgMessageId = await postNewPhotoGroup(
       ctx,
       authorize,
@@ -294,6 +305,7 @@ export class NewPhotoController implements Controller {
       authorize.id,
       newPhoto.topicId,
       newPhoto.groupTgChatId,
+      newPhoto.groupTgThreadId,
       newPhoto.groupTgMessageId,
       newPhoto.channelTgChatId,
       newPhoto.channelTgMessageId,

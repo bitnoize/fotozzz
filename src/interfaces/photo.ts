@@ -7,6 +7,7 @@ export interface Photo {
   userId: number
   topicId: number
   groupTgChatId: number
+  groupTgThreadId: number
   groupTgMessageId: number
   channelTgChatId: number
   channelTgMessageId: number

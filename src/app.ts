@@ -31,8 +31,10 @@ import {
   sureSessionMembership,
   replyMainCheckGroup,
   replyMainCheckChannel,
-  replyMainMenu
+  replyMainMenu,
+  updatePhotoGroup
 } from './helpers/telegram.js'
+import { RATE_VALUES } from './constants/rate.js'
 import { logger } from './logger.js'
 
 export class App {
@@ -94,6 +96,7 @@ export class App {
     this.bot.action('main-profile', this.profileMenuHandler)
     this.bot.action('main-photo', this.photoMenuHandler)
     this.bot.action('main-search', this.searchMenuHandler)
+    this.bot.action(/^rate-(\w+)$/, this.ratePhotoHandler)
 
     this.bot.on('chat_join_request', this.chatJoinRequestHandler)
 
@@ -252,6 +255,56 @@ export class App {
   private changeChatMemberHandler: AppContextHandler = async (ctx) => {
     logger.info(`Bot changeChatMemberHandler`)
     //console.dir(ctx, { depth: 4 })
+  }
+
+  private ratePhotoHandler: AppContextHandler = async (ctx) => {
+    const authorize = sureSessionAuthorize(ctx)
+
+      const rateValue = ctx.match[1]
+
+      const tgChatId = ctx.update.callback_query.message.chat.id
+
+      const {
+        message_thread_id: tgThreadId,
+        message_id: tgMessageId
+      } = ctx.update.callback_query.message
+
+      if (
+        rateValue != null &&
+        typeof rateValue === 'string' &&
+        RATE_VALUES.includes(rateValue) &&
+        tgThreadId != null &&
+        typeof tgThreadId === 'number' &&
+        tgMessageId != null &&
+        typeof tgMessageId === 'number'
+      ) {
+        const photo = await this.postgresService.getPhotoTgGroup(
+          tgChatId,
+          tgThreadId,
+          tgMessageId
+        )
+
+        if (photo !== undefined) {
+          const check = await this.postgresService.checkRateUserPhoto(
+            authorize.id,
+            photo.id
+          )
+
+          if (check) {
+            const rate = await this.postgresService.newRate(
+              authorize.id,
+              photo.topicId,
+              photo.id,
+              rateValue,
+              ctx.from
+            )
+
+            const ratesAgg = await this.postgresService.getRatesAgg(photo.id)
+
+            updatePhotoGroup(ctx, authorize, photo, ratesAgg)
+          }
+        }
+      }
   }
 
   private unknownHandler: AppContextHandler = async (ctx) => {

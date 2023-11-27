@@ -3,7 +3,7 @@ import { PostgresServiceOptions } from '../interfaces/postgres.js'
 import { UserGender, User, UserFull } from '../interfaces/user.js'
 import { Topic } from '../interfaces/topic.js'
 import { Photo } from '../interfaces/photo.js'
-import { Rate } from '../interfaces/rate.js'
+import { Rate, RateValue, RateAgg } from '../interfaces/rate.js'
 import { Comment } from '../interfaces/comment.js'
 import {
   isRowId,
@@ -14,6 +14,8 @@ import {
   isRowsTopics,
   isRowPhoto,
   isRowsPhotos,
+  isRowRate,
+  isRowsRatesAgg,
   isRowComment,
   isRowsComments,
   buildUser,
@@ -22,6 +24,8 @@ import {
   buildTopics,
   buildPhoto,
   buildPhotos,
+  buildRate,
+  buildRatesAgg,
   buildComment,
   buildComments
 } from '../helpers/postgres.js'
@@ -237,10 +241,65 @@ export class PostgresService {
     const client = await this.pool.connect()
 
     try {
-      const resultSelectUser = await client.query(this.selectUserFullByIdSql, [id])
+      const resultSelectUser = await client.query(
+        this.selectUserFullByIdSql,
+        [id]
+      )
 
       if (resultSelectUser.rowCount === 0) {
         throw new Error(`expected user does not exists`)
+      }
+
+      const rowSelectUser = resultSelectUser.rows.shift()
+      if (!isRowUserFull(rowSelectUser)) {
+        throw new Error(`selected user malformed result`)
+      }
+
+      const resultSelectPhotosCount = await client.query(
+        this.selectPhotosCountByUserIdSql,
+        [rowSelectUser.id, 'published']
+      )
+
+      const rowSelectPhotosCount = resultSelectPhotosCount.rows.shift()
+      if (!isRowCount(rowSelectPhotosCount)) {
+        throw new Error(`selected count malformed result`)
+      }
+
+      const resultSelectCommentsCount = await client.query(
+        this.selectCommentsCountByUserIdSql,
+        [rowSelectUser.id, 'published']
+      )
+
+      const rowSelectCommentsCount = resultSelectCommentsCount.rows.shift()
+      if (!isRowCount(rowSelectCommentsCount)) {
+        throw new Error(`selected count malformed result`)
+      }
+
+      const userFull = buildUserFull(
+        rowSelectUser,
+        rowSelectPhotosCount,
+        rowSelectCommentsCount
+      )
+
+      return userFull
+    } catch (error) {
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  async searchUserFull(nick: string): Promise<UserFull | undefined> {
+    const client = await this.pool.connect()
+
+    try {
+      const resultSelectUser = await client.query(
+        this.selectUserFullByNickSql,
+        [nick]
+      )
+
+      if (resultSelectUser.rowCount === 0) {
+        return undefined
       }
 
       const rowSelectUser = resultSelectUser.rows.shift()
@@ -398,6 +457,7 @@ export class PostgresService {
     userId: number,
     topicId: number,
     groupTgChatId: number,
+    groupTgThreadId: number,
     groupTgMessageId: number,
     channelTgChatId: number,
     channelTgMessageId: number,
@@ -449,6 +509,7 @@ export class PostgresService {
         rowSelectUser.id,
         rowSelectTopic.id,
         groupTgChatId,
+        groupTgThreadId,
         groupTgMessageId,
         channelTgChatId,
         channelTgMessageId,
@@ -552,6 +613,38 @@ export class PostgresService {
     }
   }
 
+  async getPhotoTgGroup(
+    tgChatId: number,
+    tgThreadId: number,
+    tgMessageId: number
+  ): Promise<Photo | undefined> {
+    const client = await this.pool.connect()
+
+    try {
+      const resultSelectPhoto = await client.query(
+        this.selectPhotoByTgGroupSql,
+        [tgChatId, tgThreadId, tgMessageId]
+      )
+
+      if (resultSelectPhoto.rowCount === 0) {
+        return undefined
+      }
+
+      const rowSelectPhoto = resultSelectPhoto.rows.shift()
+      if (!isRowPhoto(rowSelectPhoto)) {
+        throw new Error(`select photo malformed result`)
+      }
+
+      const photo = buildPhoto(rowSelectPhoto)
+
+      return photo
+    } catch (error) {
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
   async deletePhotoUser(
     photoId: number,
     userId: number,
@@ -620,6 +713,165 @@ export class PostgresService {
     } catch (error) {
       await client.query('ROLLBACK')
 
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  async newRate(
+    userId: number,
+    topicId: number,
+    photoId: number,
+    value: RateValue,
+    from: unknown
+  ): Promise<Rate> {
+    const client = await this.pool.connect()
+
+    try {
+      await client.query('BEGIN')
+
+      const resultSelectUser = await client.query(this.selectUserByIdForShareSql, [
+        userId
+      ])
+
+      if (resultSelectUser.rowCount === 0) {
+        throw new Error(`expected user does not exists`)
+      }
+
+      const rowSelectUser = resultSelectUser.rows.shift()
+      if (!isRowUser(rowSelectUser)) {
+        throw new Error(`select user malformed result`)
+      }
+
+      if (rowSelectUser.status !== 'active') {
+        throw new Error(`only active user can create rate`)
+      }
+
+      const resultSelectTopic = await client.query(
+        this.selectTopicByIdForShareSql,
+        [topicId]
+      )
+
+      if (resultSelectTopic.rowCount === 0) {
+        throw new Error(`expected topic does not exists`)
+      }
+
+      const rowSelectTopic = resultSelectTopic.rows.shift()
+      if (!isRowTopic(rowSelectTopic)) {
+        throw new Error(`select topic malformed result`)
+      }
+
+      if (rowSelectTopic.status !== 'available') {
+        throw new Error(`only in available topic can create rate`)
+      }
+
+      const resultSelectPhoto = await client.query(
+        this.selectPhotoByIdForShareSql,
+        [photoId]
+      )
+
+      if (resultSelectPhoto.rowCount === 0) {
+        throw new Error(`expected photo does not exists`)
+      }
+
+      const rowSelectPhoto = resultSelectPhoto.rows.shift()
+      if (!isRowPhoto(rowSelectPhoto)) {
+        throw new Error(`select photo malformed result`)
+      }
+
+      if (rowSelectPhoto.status !== 'published') {
+        throw new Error(`only for published photo can create rate`)
+      }
+
+      const resultInsertRate = await client.query(
+        this.insertRateSql,
+        [
+          rowSelectUser.id,
+          rowSelectTopic.id,
+          rowSelectPhoto.id,
+          value
+        ]
+      )
+
+      const rowInsertRate = resultInsertRate.rows.shift()
+      if (!isRowId(rowInsertRate)) {
+        throw new Error(`insert rate malformed result`)
+      }
+
+      const resultSelectRate = await client.query(
+        this.selectRateByIdForShareSql,
+        [rowInsertRate.id]
+      )
+
+      const rowSelectRate = resultSelectRate.rows.shift()
+      if (!isRowRate(rowSelectRate)) {
+        throw new Error(`select rate malformed result`)
+      }
+
+      await client.query(
+        this.insertRateLogSql,
+        [
+          rowSelectRate.id,
+          rowSelectRate.user_id,
+          'rate_create',
+          value,
+          { from }
+        ]
+      )
+
+      const rate = buildRate(rowSelectRate)
+
+      await client.query('COMMIT')
+
+      return rate
+    } catch (error) {
+      await client.query('ROLLBACK')
+
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  async checkRateUserPhoto(
+    userId: number,
+    photoId: number,
+  ): Promise<boolean> {
+    const client = await this.pool.connect()
+
+    try {
+      const resultSelectRate = await client.query(
+        this.selectRateByUserIdPhotoIdSql,
+        [userId, photoId]
+      )
+
+      return resultSelectRate.rowCount === 0 ? true : false
+    } catch (error) {
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  async getRatesAgg(photoId: number): Promise<RateAgg[]> {
+    const client = await this.pool.connect()
+
+    try {
+      const resultSelectRatesAgg = await client.query(
+        this.selectRatesAggSql,
+        [photoId]
+      )
+
+      const rowsSelectRatesAgg = resultSelectRatesAgg.rows
+      if (!isRowsRatesAgg(rowsSelectRatesAgg)) {
+        throw new Error(`select ratesAgg malformed result`)
+      }
+
+      const ratesAgg = buildRatesAgg(rowsSelectRatesAgg)
+
+      return ratesAgg
+    } catch (error) {
       throw error
     } finally {
       client.release()
@@ -820,6 +1072,14 @@ FROM users
 WHERE id = $1
 `
 
+  private readonly selectUserFullByNickSql = `
+SELECT
+  id, tg_from_id, nick, gender, status, role, avatar_tg_file_id, about,
+  register_time, last_activity_time
+FROM users
+WHERE nick = $1
+`
+
   private readonly insertUserSql = `
 INSERT INTO users (
   tg_from_id, status, role
@@ -911,7 +1171,7 @@ VALUES ($1, $2, $3, $4, $5)
 
   private readonly selectPhotoByIdForShareSql = `
 SELECT
-  id, user_id, topic_id, group_tg_chat_id, group_tg_message_id,
+  id, user_id, topic_id, group_tg_chat_id, group_tg_thread_id, group_tg_message_id,
   channel_tg_chat_id, channel_tg_message_id, tg_file_id,
   description, status, create_time
 FROM photos
@@ -921,7 +1181,7 @@ FOR SHARE
 
   private readonly selectPhotoByIdUserIdForUpdateSql = `
 SELECT
-  id, user_id, topic_id, group_tg_chat_id, group_tg_message_id,
+  id, user_id, topic_id, group_tg_chat_id, group_tg_thread_id, group_tg_message_id,
   channel_tg_chat_id, channel_tg_message_id, tg_file_id,
   description, status, create_time
 FROM photos
@@ -931,7 +1191,7 @@ FOR UPDATE
 
   private readonly selectPhotoByIdForUpdateSql = `
 SELECT
-  id, user_id, topic_id, group_tg_chat_id, group_tg_message_id,
+  id, user_id, topic_id, group_tg_chat_id, group_tg_thread_id, group_tg_message_id,
   channel_tg_chat_id, channel_tg_message_id, tg_file_id,
   description, status, create_time
 FROM photos
@@ -941,7 +1201,7 @@ FOR UPDATE
 
   private readonly selectPhotoByIdUserIdSql = `
 SELECT
-  id, user_id, topic_id, group_tg_chat_id, group_tg_message_id,
+  id, user_id, topic_id, group_tg_chat_id, group_tg_thread_id, group_tg_message_id,
   channel_tg_chat_id, channel_tg_message_id, tg_file_id,
   description, status, create_time
 FROM photos
@@ -950,12 +1210,21 @@ WHERE id = $1 AND user_id = $2
 
   private readonly selectPhotosByUserIdSql = `
 SELECT
-  id, user_id, topic_id, group_tg_chat_id, group_tg_message_id,
+  id, user_id, topic_id, group_tg_chat_id, group_tg_thread_id, group_tg_message_id,
   channel_tg_chat_id, channel_tg_message_id, tg_file_id,
   description, status, create_time
 FROM photos
 WHERE user_id = $1 AND status = $2
 ORDER BY create_time DESC
+`
+
+  private readonly selectPhotoByTgGroupSql = `
+SELECT
+  id, user_id, topic_id, group_tg_chat_id, group_tg_thread_id, group_tg_message_id,
+  channel_tg_chat_id, channel_tg_message_id, tg_file_id,
+  description, status, create_time
+FROM photos
+WHERE group_tg_chat_id = $1 AND group_tg_thread_id = $2 AND group_tg_message_id = $3
 `
 
   private readonly selectPhotosCountByUserIdSql = `
@@ -967,11 +1236,11 @@ WHERE user_id = $1 AND status = $2
 
   private readonly insertPhotoSql = `
 INSERT INTO photos (
-  user_id, topic_id, group_tg_chat_id, group_tg_message_id,
+  user_id, topic_id, group_tg_chat_id, group_tg_thread_id, group_tg_message_id,
   channel_tg_chat_id, channel_tg_message_id, tg_file_id,
   description, status
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING id
 `
 
@@ -987,6 +1256,29 @@ INSERT INTO photo_logs (
   photo_id, mod_user_id, action, status, data
 )
 VALUES ($1, $2, $3, $4, $5)
+`
+
+  private readonly selectRateByIdForShareSql = `
+SELECT
+  id, user_id, topic_id, photo_id, value, create_time
+FROM rates
+WHERE id = $1
+FOR SHARE
+`
+
+  private readonly selectRateByUserIdPhotoIdSql = `
+SELECT
+  id, user_id, topic_id, photo_id, value, create_time
+FROM rates
+WHERE user_id = $1 AND photo_id = $2
+`
+
+  private readonly selectRatesAggSql = `
+SELECT
+  COUNT(*) AS count, value
+FROM rates
+WHERE photo_id = $1
+GROUP BY value
 `
 
   private readonly insertRateSql = `

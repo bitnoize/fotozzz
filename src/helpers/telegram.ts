@@ -14,6 +14,7 @@ import {
 import { UserGender, User, UserFull } from '../interfaces/user.js'
 import { Topic } from '../interfaces/topic.js'
 import { Photo } from '../interfaces/photo.js'
+import { RateAgg } from '../interfaces/rate.js'
 import { USER_NICK_REGEXP, USER_GENDERS } from '../constants/user.js'
 
 export interface PhotoSize {
@@ -416,10 +417,10 @@ export const keyboardSearchIntro = () => {
 
 export const keyboardNewPhotoGroup = () => {
   return Markup.inlineKeyboard([
-    Markup.button.callback('Шокирует', 'rate-shoked'),
-    Markup.button.callback('Восхищяет', 'rate-awesome'),
-    Markup.button.callback('Умиляет', 'rate-test1'),
-    Markup.button.callback('Не уместно', 'rate-test2')
+    [Markup.button.callback('\u{1F92A} Шокирует', 'rate-shock')],
+    [Markup.button.callback('\u{1F60D} Восхищяет', 'rate-amazing')],
+    [Markup.button.callback('\u{1F970} Умиляет', 'rate-cute')],
+    [Markup.button.callback('\u{1F627} Не уместно', 'rate-not_appropriate')]
   ])
 }
 
@@ -867,6 +868,43 @@ export const postNewPhotoGroup = async (
   return message.message_id
 }
 
+export const updatePhotoGroup = async (
+  ctx: AppContext,
+  authorize: User,
+  photo: Photo,
+  ratesAgg: RateAgg[]
+): Promise<void> => {
+  const { nick, emojiGender } = authorize
+  const { description } = photo
+
+  const ratesView = ratesAgg.map((rateCount) => {
+    if (rateCount.value === 'not_appropriate') {
+      return `\u{1F627} Не уместно: ${rateCount.count}`
+    } else if (rateCount.value === 'cute') {
+      return `\u{1F970} Умиляет: ${rateCount.count}`
+    } else if (rateCount.value === 'amazing') {
+      return `\u{1F60D} Восхищяет: ${rateCount.count}`
+    } else if (rateCount.value === 'shock') {
+      return `\u{1F92A} Шокирует: ${rateCount.count}`
+    }
+  }).join('\n')
+
+  const caption = `${emojiGender} *${nick}*\n` +
+    description + '\n' +
+    ratesView
+
+  await ctx.telegram.editMessageCaption(
+    photo.groupTgChatId,
+    photo.groupTgMessageId,
+    undefined,
+    caption,
+    {
+      message_thread_id: photo.groupTgThreadId,
+      ...keyboardNewPhotoGroup()
+    }
+  )
+}
+
 export const postNewPhotoChannel = async (
   ctx: AppContext,
   authorize: User,
@@ -874,9 +912,11 @@ export const postNewPhotoChannel = async (
   newPhoto: NewPhotoPublish
 ): Promise<number> => {
   const { nick, emojiGender } = authorize
-  const { description } = newPhoto
+  const { topicName, description } = newPhoto
 
-  const caption = `${emojiGender} *${nick}*\n` + description
+  const caption = `${emojiGender} *${nick}*\n` +
+    `Раздел: ${topicName}\n` +
+    description
 
   const message = await ctx.telegram.sendPhoto(
     newPhoto.channelTgChatId,

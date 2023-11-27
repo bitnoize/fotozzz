@@ -10,3 +10,8 @@ export interface Rate {
   value: RateValue
   createTime: Date
 }
+
+export interface RateAgg {
+  count: number
+  value: string
+}

@@ -5,7 +5,7 @@ import terser from '@rollup/plugin-terser'
 
 const external = Object
   .keys(pkg.dependencies)
-  .concat(['#package.json', 'telegraf/filters'])
+  .concat(['#package.json', 'telegraf/filters', '@telegraf/session/redis'])
 const plugins = [typescript(), json()]
 
 if (process.env.NODE_ENV === 'production') {
