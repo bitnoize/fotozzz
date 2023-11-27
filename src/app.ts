@@ -284,6 +284,8 @@ export class App {
           tgMessageId
         )
 
+        const user = await this.postgresService.getUserFull(photo.userId)
+
         if (photo !== undefined) {
           const check = await this.postgresService.checkRateUserPhoto(
             authorize.id,
@@ -301,7 +303,7 @@ export class App {
 
             const ratesAgg = await this.postgresService.getRatesAgg(photo.id)
 
-            updatePhotoGroup(ctx, authorize, photo, ratesAgg)
+            updatePhotoGroup(ctx, user, photo, ratesAgg)
           }
         }
       }

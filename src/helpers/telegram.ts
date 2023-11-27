@@ -351,17 +351,33 @@ export const keyboardChangeAboutAbout = () => {
 }
 
 export const keyboardPhotoMenu = (photo: Photo, navigation: Navigation) => {
-  const buttons = []
+  const nav = []
 
   if (navigation.currentPage !== 1) {
-    buttons.push([Markup.button.callback('<< Предыдущее', 'photo-prev')])
+    nav.push(Markup.button.callback('<<', 'photo-prev'))
   }
+
+  const {
+    groupTgChatId: chatIdRaw,
+    groupTgThreadId: threadId,
+    groupTgMessageId: messageId
+  } = photo
+
+  const chatId = Math.abs(chatIdRaw).toString().replace(/^100/, '')
+
+  nav.push(
+    Markup.button.url(
+      '*',
+      `https://t.me/c/${chatId}/${threadId}/${messageId}`
+    )
+  )
 
   if (navigation.currentPage !== navigation.totalPages) {
-    buttons.push([Markup.button.callback('Следующее >>', 'photo-next')])
+    nav.push(Markup.button.callback('>>', 'photo-next'))
   }
 
-  buttons.push([Markup.button.callback('Перейти', 'photo-goto')])
+  const buttons = [nav]
+
   buttons.push([Markup.button.callback('Удалить', `photo-delete-${photo.id}`)])
   buttons.push([Markup.button.callback('Добавить', 'photo-new')])
   buttons.push([Markup.button.callback('Вернуться в главное меню', 'photo-back')])
@@ -879,19 +895,19 @@ export const updatePhotoGroup = async (
 
   const ratesView = ratesAgg.map((rateCount) => {
     if (rateCount.value === 'not_appropriate') {
-      return `\u{1F627} Не уместно: ${rateCount.count}`
+      return `\u{1F627} ${rateCount.count}`
     } else if (rateCount.value === 'cute') {
-      return `\u{1F970} Умиляет: ${rateCount.count}`
+      return `\u{1F970} ${rateCount.count}`
     } else if (rateCount.value === 'amazing') {
-      return `\u{1F60D} Восхищяет: ${rateCount.count}`
+      return `\u{1F60D} ${rateCount.count}`
     } else if (rateCount.value === 'shock') {
-      return `\u{1F92A} Шокирует: ${rateCount.count}`
+      return `\u{1F92A} ${rateCount.count}`
     }
-  }).join('\n')
+  }).join(' ')
 
   const caption = `${emojiGender} *${nick}*\n` +
-    description + '\n' +
-    ratesView
+    `${description}\n` +
+    `Оценки: ${ratesView}`
 
   await ctx.telegram.editMessageCaption(
     photo.groupTgChatId,

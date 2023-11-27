@@ -559,9 +559,10 @@ export class PostgresService {
     const client = await this.pool.connect()
 
     try {
-      const resultSelectUser = await client.query(this.selectUserByIdForShareSql, [
-        userId
-      ])
+      const resultSelectUser = await client.query(
+        this.selectUserByIdForShareSql,
+        [userId]
+      )
 
       if (resultSelectUser.rowCount === 0) {
         throw new Error(`expected user does not exists`)
@@ -731,9 +732,10 @@ export class PostgresService {
     try {
       await client.query('BEGIN')
 
-      const resultSelectUser = await client.query(this.selectUserByIdForShareSql, [
-        userId
-      ])
+      const resultSelectUser = await client.query(
+        this.selectUserByIdForShareSql,
+        [userId]
+      )
 
       if (resultSelectUser.rowCount === 0) {
         throw new Error(`expected user does not exists`)
