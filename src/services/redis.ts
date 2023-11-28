@@ -59,7 +59,7 @@ export class RedisService {
 local counter = tonumber(redis.call('GET', KEYS[1])) or 0
 
 if counter >= 3 then
-  return redis.call('EXPIRETIME', KEYS[1])
+  return redis.call('PEXPIRETIME', KEYS[1])
 else
   return 0
 end
@@ -69,10 +69,10 @@ end
 local counter = tonumber(redis.call('INCR', KEYS[1]))
 
 if counter == 1 then
-  redis.call('EXPIRE', KEYS[1], 24 * 60 * 60)
+  redis.call('PEXPIRE', KEYS[1], 24 * 60 * 60 * 1000)
   return 0
 elseif counter > 3 then
-  return redis.call('EXPIRETIME', KEYS[1])
+  return redis.call('PEXPIRETIME', KEYS[1])
 else
   return 0
 end

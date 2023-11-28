@@ -350,39 +350,31 @@ export const keyboardChangeAboutAbout = () => {
   ])
 }
 
-export const keyboardPhotoMenu = (photo: Photo, navigation: Navigation) => {
-  const nav = []
-
-  if (navigation.currentPage !== 1) {
-    nav.push(Markup.button.callback('<<', 'photo-prev'))
-  }
+export const keyboardPhotoMenu = (
+  photo: Photo,
+  navigation: Navigation
+) => {
+  const prevBtn = navigation.currentPage !== 1 ? '<<' : ' '
+  const nextBtn = navigation.currentPage !== navigation.totalPages ? '>>' : ' '
 
   const {
-    groupTgChatId: chatIdRaw,
-    groupTgThreadId: threadId,
-    groupTgMessageId: messageId
+    channelTgChatId,
+    channelTgMessageId: messageId
   } = photo
 
-  const chatId = Math.abs(chatIdRaw).toString().replace(/^100/, '')
+  const chatId = Math.abs(channelTgChatId).toString().replace(/^100/, '')
+  const url = `https://t.me/c/${chatId}/${messageId}`
 
-  nav.push(
-    Markup.button.url(
-      '*',
-      `https://t.me/c/${chatId}/${threadId}/${messageId}`
-    )
-  )
-
-  if (navigation.currentPage !== navigation.totalPages) {
-    nav.push(Markup.button.callback('>>', 'photo-next'))
-  }
-
-  const buttons = [nav]
-
-  buttons.push([Markup.button.callback('Удалить', `photo-delete-${photo.id}`)])
-  buttons.push([Markup.button.callback('Добавить', 'photo-new')])
-  buttons.push([Markup.button.callback('Вернуться в главное меню', 'photo-back')])
-
-  return Markup.inlineKeyboard(buttons)
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback(prevBtn, 'photo-prev'),
+      Markup.button.url('*', url),
+      Markup.button.callback(nextBtn, 'photo-next')
+    ],
+    [Markup.button.callback('Удалить', `photo-delete-${photo.id}`)],
+    [Markup.button.callback('Добавить', 'photo-new')],
+    [Markup.button.callback('Вернуться в главное меню', 'photo-back')]
+  ])
 }
 
 export const keyboardPhotoBlank = () => {
@@ -431,12 +423,19 @@ export const keyboardSearchIntro = () => {
   ])
 }
 
-export const keyboardNewPhotoGroup = () => {
+export const keyboardNewPhotoGroup = (
+  channelTgChatId: number,
+  channelTgMessageId: number
+) => {
+  const chatId = Math.abs(channelTgChatId).toString().replace(/^100/, '')
+  const url = `https://t.me/c/${chatId}/${channelTgMessageId}`
+
   return Markup.inlineKeyboard([
     [Markup.button.callback('\u{1F92A} Шокирует', 'rate-shock')],
     [Markup.button.callback('\u{1F60D} Восхищяет', 'rate-amazing')],
     [Markup.button.callback('\u{1F970} Умиляет', 'rate-cute')],
-    [Markup.button.callback('\u{1F627} Не уместно', 'rate-not_appropriate')]
+    [Markup.button.callback('\u{1F627} Не уместно', 'rate-not_appropriate')],
+    [Markup.button.url('Комментарии', url)]
   ])
 }
 
@@ -686,7 +685,9 @@ export const replyPhotoMenu = async (
       throw new Error(`can't get user photo by index`)
     }
 
-    const caption = photo.description
+    const caption = `${photo.description}\n` +
+      `Фото ${navigation.currentPage} из ${navigation.totalPages}`
+
     const keyboard = keyboardPhotoMenu(photo, navigation)
 
     if (navigation.updatable) {
@@ -866,7 +867,11 @@ export const postNewPhotoGroup = async (
   newPhoto: NewPhotoPublish
 ): Promise<number> => {
   const { nick, emojiGender } = authorize
-  const { description } = newPhoto
+  const {
+    channelTgChatId,
+    channelTgMessageId,
+    description
+  } = newPhoto
 
   const caption = `${emojiGender} *${nick}*\n` + description
 
@@ -874,7 +879,7 @@ export const postNewPhotoGroup = async (
     newPhoto.groupTgChatId,
     newPhoto.tgFileId,
     {
-      ...keyboardNewPhotoGroup(),
+      ...keyboardNewPhotoGroup(channelTgChatId, channelTgMessageId),
       message_thread_id: newPhoto.groupTgThreadId,
       //reply_markup: 'MarkdownV2',
       caption
@@ -891,7 +896,11 @@ export const updatePhotoGroup = async (
   ratesAgg: RateAgg[]
 ): Promise<void> => {
   const { nick, emojiGender } = authorize
-  const { description } = photo
+  const {
+    channelTgChatId,
+    channelTgMessageId,
+    description
+  } = photo
 
   const ratesView = ratesAgg.map((rateCount) => {
     if (rateCount.value === 'not_appropriate') {
@@ -916,7 +925,7 @@ export const updatePhotoGroup = async (
     caption,
     {
       message_thread_id: photo.groupTgThreadId,
-      ...keyboardNewPhotoGroup()
+      ...keyboardNewPhotoGroup(channelTgChatId, channelTgMessageId)
     }
   )
 }
@@ -931,7 +940,7 @@ export const postNewPhotoChannel = async (
   const { topicName, description } = newPhoto
 
   const caption = `${emojiGender} *${nick}*\n` +
-    `Раздел: ${topicName}\n` +
+    `Раздел: #${topicName}\n` +
     description
 
   const message = await ctx.telegram.sendPhoto(

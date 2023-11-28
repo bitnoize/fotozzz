@@ -284,9 +284,9 @@ export class App {
           tgMessageId
         )
 
-        const user = await this.postgresService.getUserFull(photo.userId)
-
         if (photo !== undefined) {
+          const user = await this.postgresService.getUserFull(photo.userId)
+
           const check = await this.postgresService.checkRateUserPhoto(
             authorize.id,
             photo.id

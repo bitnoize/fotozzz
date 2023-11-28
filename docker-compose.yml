@@ -1,0 +1,46 @@
+
+networks:
+  fotozzz-net:
+    external: true
+
+services:
+  server:
+    build: .
+    image: ghcr.io/bitnoize/fotozzz:latest
+    environment:
+      - UID=4020
+      - GID=4020
+      - APP_CONFIG_SCHEMA=${APP_CONFIG_SCHEMA}
+      - APP_CONFIG=${APP_CONFIG}
+    networks:
+      - fotozzz-net
+    depends_on:
+      - connect-postgres
+      - connect-redis
+      - connect-proxy-http
+    restart: unless-stopped
+
+  connect-postgres:
+    image: alpine/socat
+    networks:
+      - fotozzz-net
+    restart: unless-stopped
+    deploy:
+      mode: global
+
+  connect-redis:
+    image: alpine/socat
+    networks:
+      - fotozzz-net
+    restart: unless-stopped
+    deploy:
+      mode: global
+
+  connect-proxy-http:
+    image: alpine/socat
+    networks:
+      - fotozzz-net
+    restart: unless-stopped
+    deploy:
+      mode: global
+

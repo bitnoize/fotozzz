@@ -614,6 +614,30 @@ export class PostgresService {
     }
   }
 
+  async getPhoto(id: number): Promise<Photo> {
+    const client = await this.pool.connect()
+
+    try {
+      const resultSelectPhoto = await client.query(
+        this.selectPhotoByIdSql,
+        [id]
+      )
+
+      const rowSelectPhoto = resultSelectPhoto.rows.shift()
+      if (!isRowPhoto(rowSelectPhoto)) {
+        throw new Error(`select photo malformed result`)
+      }
+
+      const photo = buildPhoto(rowSelectPhoto)
+
+      return photo
+    } catch (error) {
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
   async getPhotoTgGroup(
     tgChatId: number,
     tgThreadId: number,
@@ -1218,6 +1242,15 @@ SELECT
 FROM photos
 WHERE user_id = $1 AND status = $2
 ORDER BY create_time DESC
+`
+
+  private readonly selectPhotoByIdSql = `
+SELECT
+  id, user_id, topic_id, group_tg_chat_id, group_tg_thread_id, group_tg_message_id,
+  channel_tg_chat_id, channel_tg_message_id, tg_file_id,
+  description, status, create_time
+FROM photos
+WHERE id = $1
 `
 
   private readonly selectPhotoByTgGroupSql = `

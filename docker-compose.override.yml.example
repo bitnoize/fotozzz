@@ -1,0 +1,42 @@
+
+services:
+  server:
+    environment:
+      - NODE_ENV=production
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 256Mb
+
+  connect-postgres:
+    command: "TCP4-LISTEN:5432,reuseaddr,fork UNIX-CLIENT:/tmp/sandbox/postgres.sock"
+    volumes:
+      - "/tmp/sandbox/postgres.sock:/tmp/sandbox/postgres.sock:ro"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.05"
+          memory: 10m
+
+  connect-redis:
+    command: "TCP4-LISTEN:6379,reuseaddr,fork UNIX-CLIENT:/tmp/sandbox/redis.sock"
+    volumes:
+      - "/tmp/sandbox/redis.sock:/tmp/sandbox/redis.sock:ro"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.05"
+          memory: 10m
+
+  connect-proxy-http:
+    command: "TCP4-LISTEN:8080,reuseaddr,fork UNIX-CLIENT:/tmp/sandbox/proxy-http.sock"
+    volumes:
+      - "/tmp/sandbox/proxy-http.sock:/tmp/sandbox/proxy-http.sock:ro"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.05"
+          memory: 10m
+

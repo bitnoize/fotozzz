@@ -68,7 +68,22 @@ export class NewPhotoController implements Controller {
       if (expire === 0) {
         return wizardNextStep(ctx, next)
       } else {
-        ctx.reply(`Лимит новых фото в день исчерпан`)
+        const intSeconds = Math.floor((expire - Date.now()) / 1000)
+        if (intSeconds <= 0) {
+          throw new Error(`photo limiter expire time in past`)
+        }
+
+        const intMinutes = Math.floor(intSeconds / 60)
+        const intHours = Math.floor(intMinutes / 60)
+        const diffMinutes = intMinutes - intHours * 60
+
+        const intString = intHours.toString() + ' ч ' +
+          diffMinutes.toString().padStart(2, '0') + ' мин'
+
+        ctx.reply(
+          `Лимит новых фото в день исчерпан\n` +
+          `Загрузка следующего будет доступна через ${intString}`
+        )
       }
     }
 
@@ -267,14 +282,14 @@ export class NewPhotoController implements Controller {
       throw new Error(`photos limit exceed`)
     }
 
-    newPhoto.groupTgMessageId = await postNewPhotoGroup(
+    newPhoto.channelTgMessageId = await postNewPhotoChannel(
       ctx,
       authorize,
       navigation,
       newPhoto
     )
 
-    newPhoto.channelTgMessageId = await postNewPhotoChannel(
+    newPhoto.groupTgMessageId = await postNewPhotoGroup(
       ctx,
       authorize,
       navigation,

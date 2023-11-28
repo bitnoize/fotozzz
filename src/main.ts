@@ -30,7 +30,7 @@ export const bootstrap = async (): Promise<void> => {
     botToken,
     useProxy,
     proxyUrl,
-    redisUrl, // FIXME
+    redisUrl,
     groupChatId,
     groupUrl,
     channelChatId,

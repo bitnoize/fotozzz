@@ -1,0 +1,7 @@
+.app-config.*
+.cache
+node_modules/
+dist
+README.md
+.git
+.env

@@ -110,8 +110,20 @@ export class DeletePhotoController implements Controller {
     const navigation = sureSessionNavigation(ctx)
     const deletePhoto = sureSceneSessionDeletePhoto(ctx)
 
-    const photo = await this.postgresService.deletePhotoUser(
-      deletePhoto.id,
+    const photo = await this.postgresService.getPhoto(deletePhoto.id)
+
+    await ctx.telegram.deleteMessage(
+      photo.groupTgChatId,
+      photo.groupTgMessageId
+    )
+
+    await ctx.telegram.deleteMessage(
+      photo.channelTgChatId,
+      photo.channelTgMessageId
+    )
+
+    await this.postgresService.deletePhotoUser(
+      photo.id,
       authorize.id,
       ctx.from
     )
