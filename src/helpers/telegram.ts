@@ -722,8 +722,8 @@ export const replyPhotoMenu = async (
   } else {
     const message = await ctx.replyWithMarkdownV2(
       `У вас нет опубликованных фото\n` +
-        `Отправьте мне фото для публикации\n` +
-        `Вы можете загрузить 3 фото в течении 24 часов`,
+      `Отправьте мне фото для публикации\n` +
+      `Вы можете загрузить 3 фото в течении 24 часов`,
       keyboardPhotoBlank()
     )
 

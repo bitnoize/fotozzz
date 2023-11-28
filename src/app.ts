@@ -304,6 +304,8 @@ export class App {
             const ratesAgg = await this.postgresService.getRatesAgg(photo.id)
 
             updatePhotoGroup(ctx, user, photo, ratesAgg)
+          } else {
+            await ctx.answerCbQuery(`Ты уже оценил это фото!`)
           }
         }
       }
