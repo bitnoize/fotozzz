@@ -15,11 +15,13 @@ import { UserGender, User, UserFull } from '../interfaces/user.js'
 import { Topic } from '../interfaces/topic.js'
 import { Photo } from '../interfaces/photo.js'
 import { RateAgg } from '../interfaces/rate.js'
+import {
+  ChatJoinRequest,
+  RatePhotoRequest,
+  CommentPhotoRequest,
+  PhotoSize
+} from '../interfaces/telegram.js'
 import { USER_NICK_REGEXP, USER_GENDERS } from '../constants/user.js'
-
-export interface PhotoSize {
-  file_id: string
-}
 
 export const wizardNextStep = (
   ctx: AppContext,
@@ -207,6 +209,100 @@ export const sureSceneSessionDeletePhoto = (ctx: AppContext): DeletePhoto => {
 
 export const dropSceneSessionDeletePhoto = (ctx: AppContext) => {
   delete ctx.scene.session.deletePhoto
+}
+
+export const parseChatJoinRequest = (
+  ctx: AppContext
+): ChatJoinRequest | undefined => {
+  if (
+    ctx.chatJoinRequest != null &&
+    typeof ctx.chatJoinRequest === 'object' &&
+    'chat' in ctx.chatJoinRequest &&
+    ctx.chatJoinRequest.chat != null &&
+    typeof ctx.chatJoinRequest.chat === 'object' &&
+    'id' in ctx.chatJoinRequest.chat &&
+    ctx.chatJoinRequest.chat.id != null &&
+    typeof ctx.chatJoinRequest.chat.id === 'number' &&
+    'from' in ctx.chatJoinRequest &&
+    ctx.chatJoinRequest.from != null &&
+    typeof ctx.chatJoinRequest.from === 'object' &&
+    'id' in ctx.chatJoinRequest.from &&
+    ctx.chatJoinRequest.from.id != null &&
+    typeof ctx.chatJoinRequest.from.id === 'number'
+  ) {
+    const { id: chatId } = ctx.chatJoinRequest.chat
+    const { id: fromId } = ctx.chatJoinRequest.from
+
+    return { chatId, fromId }
+  }
+
+  return undefined
+}
+
+export const parseRatePhotoRequest = (
+  ctx: AppContext
+): RatePhotoRequest | undefined => {
+  if (
+    ctx.callbackQuery != null &&
+    typeof ctx.callbackQuery === 'object' &&
+    'message' in ctx.callbackQuery &&
+    ctx.callbackQuery.message != null &&
+    typeof ctx.callbackQuery.message === 'object' &&
+    'chat' in ctx.callbackQuery.message &&
+    ctx.callbackQuery.message.chat != null &&
+    typeof ctx.callbackQuery.message.chat === 'object' &&
+    'id' in ctx.callbackQuery.message.chat &&
+    ctx.callbackQuery.message.chat.id != null &&
+    typeof ctx.callbackQuery.message.chat.id === 'number' &&
+    'message_thread_id' in ctx.callbackQuery.message &&
+    ctx.callbackQuery.message.message_thread_id != null &&
+    typeof ctx.callbackQuery.message.message_thread_id === 'number'
+  ) {
+    const { id: groupTgChatId } = ctx.callbackQuery.message.chat
+
+    const {
+      message_thread_id: groupTgThreadId,
+      message_id: groupTgMessageId
+    } = ctx.callbackQuery.message
+
+    return { groupTgChatId, groupTgThreadId, groupTgMessageId }
+  }
+
+  return undefined
+}
+
+export const parseCommentPhotoRequest = (
+  ctx: AppContext
+): CommentPhotoRequest | undefined => {
+  if (
+    ctx.message != null &&
+    typeof ctx.message === 'object' &&
+    'reply_to_message' in ctx.message &&
+    ctx.message.reply_to_message != null &&
+    typeof ctx.message.reply_to_message === 'object' &&
+    'forward_from_chat' in ctx.message.reply_to_message &&
+    ctx.message.reply_to_message.forward_from_chat != null &&
+    typeof ctx.message.reply_to_message.forward_from_chat === 'object' &&
+    'id' in ctx.message.reply_to_message.forward_from_chat &&
+    typeof ctx.message.reply_to_message.forward_from_chat.id === 'number' &&
+    'forward_from_message_id' in ctx.message.reply_to_message &&
+    ctx.message.reply_to_message.forward_from_message_id != null &&
+    typeof ctx.message.reply_to_message.forward_from_message_id === 'number'
+  ) {
+    const {
+      id: channelTgChatId
+    } = ctx.message.reply_to_message.forward_from_chat
+
+    const {
+      forward_from_message_id: channelTgMessageId
+    } = ctx.message.reply_to_message
+
+    const text = 'text' in ctx.message ? ctx.message.text ?? null : null
+
+    return { channelTgChatId, channelTgMessageId, text }
+  }
+
+  return undefined
 }
 
 export const isUserGender = (userGender: unknown): userGender is UserGender => {

@@ -10,6 +10,6 @@ export interface Comment {
   channelTgChatId: number
   channelTgMessageId: number
   status: CommentStatus
-  text: string
+  text: string | null
   createTime: Date
 }

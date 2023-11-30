@@ -331,7 +331,7 @@ export const isRowComment = (rowComment: unknown): rowComment is RowComment => {
     'status' in rowComment &&
     typeof rowComment.status === 'string' &&
     'text' in rowComment &&
-    typeof rowComment.text === 'string' &&
+    (rowComment.text == null || typeof rowComment.text === 'string') &&
     'create_time' in rowComment &&
     typeof rowComment.create_time === 'object' &&
     rowComment.create_time instanceof Date

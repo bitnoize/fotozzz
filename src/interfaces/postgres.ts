@@ -89,6 +89,6 @@ export interface RowComment {
   channel_tg_chat_id: number
   channel_tg_message_id: number
   status: CommentStatus
-  text: string
+  text: string | null
   create_time: Date
 }

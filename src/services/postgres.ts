@@ -638,17 +638,48 @@ export class PostgresService {
     }
   }
 
-  async getPhotoTgGroup(
-    tgChatId: number,
-    tgThreadId: number,
-    tgMessageId: number
+  async getPhotoGroup(
+    groupTgChatId: number,
+    groupTgThreadId: number,
+    groupTgMessageId: number
   ): Promise<Photo | undefined> {
     const client = await this.pool.connect()
 
     try {
       const resultSelectPhoto = await client.query(
         this.selectPhotoByTgGroupSql,
-        [tgChatId, tgThreadId, tgMessageId]
+        [groupTgChatId, groupTgThreadId, groupTgMessageId]
+      )
+
+      if (resultSelectPhoto.rowCount === 0) {
+        return undefined
+      }
+
+      const rowSelectPhoto = resultSelectPhoto.rows.shift()
+      if (!isRowPhoto(rowSelectPhoto)) {
+        throw new Error(`select photo malformed result`)
+      }
+
+      const photo = buildPhoto(rowSelectPhoto)
+
+      return photo
+    } catch (error) {
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  async getPhotoChannel(
+    channelTgChatId: number,
+    channelTgMessageId: number
+  ): Promise<Photo | undefined> {
+    const client = await this.pool.connect()
+
+    try {
+      const resultSelectPhoto = await client.query(
+        this.selectPhotoByTgChannelSql,
+        [channelTgChatId, channelTgMessageId]
       )
 
       if (resultSelectPhoto.rowCount === 0) {
@@ -770,10 +801,6 @@ export class PostgresService {
         throw new Error(`select user malformed result`)
       }
 
-      if (rowSelectUser.status !== 'active') {
-        throw new Error(`only active user can create rate`)
-      }
-
       const resultSelectTopic = await client.query(
         this.selectTopicByIdForShareSql,
         [topicId]
@@ -788,10 +815,6 @@ export class PostgresService {
         throw new Error(`select topic malformed result`)
       }
 
-      if (rowSelectTopic.status !== 'available') {
-        throw new Error(`only in available topic can create rate`)
-      }
-
       const resultSelectPhoto = await client.query(
         this.selectPhotoByIdForShareSql,
         [photoId]
@@ -804,10 +827,6 @@ export class PostgresService {
       const rowSelectPhoto = resultSelectPhoto.rows.shift()
       if (!isRowPhoto(rowSelectPhoto)) {
         throw new Error(`select photo malformed result`)
-      }
-
-      if (rowSelectPhoto.status !== 'published') {
-        throw new Error(`only for published photo can create rate`)
       }
 
       const resultInsertRate = await client.query(
@@ -908,8 +927,9 @@ export class PostgresService {
     userId: number,
     topicId: number,
     photoId: number,
-    tgId: number,
-    text: string,
+    channelTgChatId: number,
+    channelTgMessageId: number,
+    text: string | null,
     from: unknown
   ): Promise<Comment> {
     const client = await this.pool.connect()
@@ -917,9 +937,10 @@ export class PostgresService {
     try {
       await client.query('BEGIN')
 
-      const resultSelectUser = await client.query(this.selectUserByIdForShareSql, [
-        userId
-      ])
+      const resultSelectUser = await client.query(
+        this.selectUserByIdForShareSql,
+        [userId]
+      )
 
       if (resultSelectUser.rowCount === 0) {
         throw new Error(`expected user does not exists`)
@@ -928,10 +949,6 @@ export class PostgresService {
       const rowSelectUser = resultSelectUser.rows.shift()
       if (!isRowUser(rowSelectUser)) {
         throw new Error(`select user malformed result`)
-      }
-
-      if (rowSelectUser.status !== 'active') {
-        throw new Error(`only active user can create comment`)
       }
 
       const resultSelectTopic = await client.query(
@@ -948,10 +965,6 @@ export class PostgresService {
         throw new Error(`select topic malformed result`)
       }
 
-      if (rowSelectTopic.status !== 'available') {
-        throw new Error(`only in available topic can create comment`)
-      }
-
       const resultSelectPhoto = await client.query(
         this.selectPhotoByIdForShareSql,
         [photoId]
@@ -966,18 +979,14 @@ export class PostgresService {
         throw new Error(`select photo malformed result`)
       }
 
-      if (rowSelectPhoto.status !== 'published') {
-        throw new Error(`only for published photo can create comment`)
-      }
-
       const resultInsertComment = await client.query(this.insertCommentSql, [
         rowSelectUser.id,
         rowSelectTopic.id,
         rowSelectPhoto.id,
-        tgId,
+        channelTgChatId,
+        channelTgMessageId,
         'published',
-        text,
-        { from }
+        text
       ])
 
       const rowInsertComment = resultInsertComment.rows.shift()
@@ -995,18 +1004,16 @@ export class PostgresService {
         throw new Error(`select comment malformed result`)
       }
 
-      await client.query(this.updateUserLastActivityTimeSql, [rowSelectUser.id])
-
       await client.query(this.insertCommentLogSql, [
         rowSelectComment.id,
-        rowSelectComment.user_id,
-        'comment_create',
-        rowSelectComment.status,
+        rowSelectPhoto.user_id,
+        'comment_publish',
+        rowSelectPhoto.status,
         { from }
       ])
 
       const comment = buildComment(rowSelectComment)
-
+      
       await client.query('COMMIT')
 
       return comment
@@ -1262,6 +1269,15 @@ FROM photos
 WHERE group_tg_chat_id = $1 AND group_tg_thread_id = $2 AND group_tg_message_id = $3
 `
 
+  private readonly selectPhotoByTgChannelSql = `
+SELECT
+  id, user_id, topic_id, group_tg_chat_id, group_tg_thread_id, group_tg_message_id,
+  channel_tg_chat_id, channel_tg_message_id, tg_file_id,
+  description, status, create_time
+FROM photos
+WHERE channel_tg_chat_id = $1 AND channel_tg_message_id = $2
+`
+
   private readonly selectPhotosCountByUserIdSql = `
 SELECT
   COUNT(*) AS count
@@ -1333,23 +1349,19 @@ VALUES ($1, $2, $3, $4, $5)
 
   private readonly selectCommentByIdForShareSql = `
 SELECT
-  id, user_id, topic_id, photo_id, tg_id, status, text, create_time
+  id, user_id, topic_id, photo_id,
+  channel_tg_chat_id, channel_tg_message_id,
+  status, text, create_time
 FROM comments
 WHERE id = $1
 FOR SHARE
 `
 
-  private readonly selectCommentByIdForUpdateSql = `
-SELECT
-  id, user_id, topic_id, photo_id, tg_id, status, text, create_time
-FROM comments
-WHERE id = $1
-FOR UPDATE
-`
-
   private readonly selectCommentsByUserIdSql = `
 SELECT
-  id, user_id, topic_id, photo_id, tg_id, status, text, create_time
+  id, user_id, topic_id, photo_id,
+  channel_tg_chat_id, channel_tg_message_id,
+  status, text, create_time
 FROM comments
 WHERE user_id = $1 AND status = $2
 ORDER BY create_time DESC
@@ -1363,9 +1375,12 @@ WHERE user_id = $1 AND status = $2
 `
 
   private readonly insertCommentSql = `
-INSERT INTO comments
-  (user_id, topic_id, photo_id, tg_id, status, text)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO comments (
+  user_id, topic_id, photo_id,
+  channel_tg_chat_id, channel_tg_message_id,
+  status, text
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING id
 `
 

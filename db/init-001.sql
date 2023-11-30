@@ -242,8 +242,7 @@ CREATE TABLE comments (
   PRIMARY KEY(id),
   FOREIGN KEY(user_id) REFERENCES users(id),
   FOREIGN KEY(topic_id) REFERENCES topics(id),
-  FOREIGN KEY(photo_id) REFERENCES photos(id),
-  UNIQUE(channel_tg_chat_id, channel_tg_message_id)
+  FOREIGN KEY(photo_id) REFERENCES photos(id)
 );
 
 GRANT SELECT, INSERT, UPDATE ON comments TO fotozzz_app;
@@ -252,6 +251,8 @@ GRANT USAGE, SELECT ON comments_id_seq TO fotozzz_app;
 CREATE INDEX comments_user_id_key ON comments (user_id);
 CREATE INDEX comments_topic_id_key ON comments (topic_id);
 CREATE INDEX comments_photo_id_key ON comments (photo_id);
+CREATE INDEX comments_channel_tg_chat_id_channel_tg_message_id_key
+  ON comments (channel_tg_chat_id, channel_tg_message_id);
 CREATE INDEX comments_create_time_key ON comments (create_time);
 
 CREATE TABLE comment_logs (
@@ -278,11 +279,6 @@ CREATE INDEX comment_logs_action_key ON comment_logs (action);
 --
 -- Test Data
 --
-
-INSERT INTO topics (
-  tg_chat_id, tg_thread_id, name, status, description
-)
-VALUES (-1002066427722, 1, 'Анонсы', 'available', NULL);
 
 INSERT INTO topics (
   tg_chat_id, tg_thread_id, name, status, description

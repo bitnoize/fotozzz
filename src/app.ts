@@ -29,12 +29,14 @@ import {
   sureSessionNavigation,
   initSessionMembership,
   sureSessionMembership,
+  parseChatJoinRequest,
+  parseRatePhotoRequest,
+  parseCommentPhotoRequest,
   replyMainCheckGroup,
   replyMainCheckChannel,
   replyMainMenu,
   updatePhotoGroup
 } from './helpers/telegram.js'
-import { RATE_VALUES } from './constants/rate.js'
 import { logger } from './logger.js'
 
 export class App {
@@ -103,7 +105,7 @@ export class App {
     this.bot.on('new_chat_member', this.changeChatMemberHandler)
     this.bot.on('left_chat_member', this.changeChatMemberHandler)
 
-    this.bot.use(this.unknownHandler)
+    this.bot.use(this.wildcardHandler)
     this.bot.catch(this.exceptionHandler)
 
     logger.info(`App initialized`)
@@ -120,7 +122,6 @@ export class App {
     if (ctx.from !== undefined && ctx.chat !== undefined) {
       const { id: fromId, is_bot: fromIsBot } = ctx.from
 
-      //if (!fromIsBot) {
       const user = await this.postgresService.authorizeUser(fromId, ctx.from)
 
       if (user.status !== 'banned') {
@@ -128,13 +129,10 @@ export class App {
 
         await next()
       } else {
-        logger.info(`Authorize: ignore banned user ${user.id}`)
+        logger.debug(`Authorize ignore banned user ${user.id}`)
       }
-      //} else {
-      //  logger.info(`Authorize: ignore bot ${fromId}`)
-      //}
     } else {
-      logger.warn(`Authorize: ignore unknown source`)
+      logger.warn(`Authorize ignore unknown message`)
       console.dir(ctx, { depth: 4 })
     }
   }
@@ -146,8 +144,6 @@ export class App {
       initSessionNavigation(ctx, navigation)
     }
 
-    console.dir(ctx.session.navigation)
-
     await next()
   }
 
@@ -156,24 +152,17 @@ export class App {
 
     const membership = blankMembership()
 
-    if (ctx.from !== undefined && ctx.chat !== undefined) {
-      const { id: fromId } = ctx.from
-      const { type: chatType } = ctx.chat
+    const { id: fromId } = ctx.from!
+    const { type: chatType } = ctx.chat!
 
-      if (chatType === 'private') {
-        const allowedStatuses = ['creator', 'administrator', 'member']
+    if (chatType === 'private') {
+      const allowedStatuses = ['creator', 'administrator', 'member']
 
-        const groupMember = await ctx.telegram.getChatMember(groupChatId, fromId)
+      const groupMember = await ctx.telegram.getChatMember(groupChatId, fromId)
+      membership.checkGroup = allowedStatuses.includes(groupMember.status)
 
-        membership.checkGroup = allowedStatuses.includes(groupMember.status)
-
-        const channelMember = await ctx.telegram.getChatMember(
-          channelChatId,
-          fromId
-        )
-
-        membership.checkChannel = allowedStatuses.includes(channelMember.status)
-      }
+      const channelMember = await ctx.telegram.getChatMember(channelChatId, fromId)
+      membership.checkChannel = allowedStatuses.includes(channelMember.status)
     }
 
     initSessionMembership(ctx, membership)
@@ -215,8 +204,6 @@ export class App {
     const navigation = sureSessionNavigation(ctx)
     const membership = sureSessionMembership(ctx)
 
-    //resetNavigation(navigation)
-
     if (authorize.status === 'register') {
       await ctx.scene.enter('register')
     } else {
@@ -233,105 +220,132 @@ export class App {
   private chatJoinRequestHandler: AppContextHandler = async (ctx) => {
     const { groupChatId, channelChatId } = this.options
 
-    if (ctx.chatJoinRequest !== undefined) {
-      const { id: chatId } = ctx.chatJoinRequest.chat
-      const { id: fromId } = ctx.chatJoinRequest.from
+    const chatJoinRequest = parseChatJoinRequest(ctx)
+
+    if (chatJoinRequest !== undefined) {
+      const { chatId, fromId } = chatJoinRequest
 
       if (chatId === groupChatId || chatId === channelChatId) {
-        const isSuccess = await ctx.telegram.approveChatJoinRequest(chatId, fromId)
+        const check = await ctx.telegram.approveChatJoinRequest(chatId, fromId)
 
-        if (isSuccess) {
-          logger.info(`ChatJoinRequest: success user: ${fromId}`)
-        } else {
-          logger.warn(`ChatJoinRequest: failed user: ${fromId}`)
+        if (!check) {
+          logger.warn(`ChatJoinRequest fail to approve join request`)
+          console.dir(chatJoinRequest)
         }
       } else {
-        logger.warn(`ChatJoinRequest: ignore unknown group: ${chatId}`)
-        console.dir(ctx.chatJoinRequest, { depth: 4 })
+        logger.warn(`ChatJoinRequest ignore unknown group`)
+        console.dir(ctx, { depth: 4 })
       }
+    } else {
+      logger.warn(`ChatJoinRequest ignore unknown message`)
+      console.dir(ctx, { depth: 4 })
     }
   }
 
   private changeChatMemberHandler: AppContextHandler = async (ctx) => {
-    logger.info(`Bot changeChatMemberHandler`)
-    //console.dir(ctx, { depth: 4 })
+    logger.debug(`ChangeChatMemberHandler received`)
   }
 
   private ratePhotoHandler: AppContextHandler = async (ctx) => {
     const authorize = sureSessionAuthorize(ctx)
 
-      const rateValue = ctx.match[1]
+    const rateValue = ctx.match[1]
 
-      const tgChatId = ctx.update.callback_query.message.chat.id
+    const ratePhotoRequest = parseRatePhotoRequest(ctx)
 
+    if (ratePhotoRequest !== undefined) {
       const {
-        message_thread_id: tgThreadId,
-        message_id: tgMessageId
-      } = ctx.update.callback_query.message
+        groupTgChatId,
+        groupTgThreadId,
+        groupTgMessageId
+      } = ratePhotoRequest
 
-      if (
-        rateValue != null &&
-        typeof rateValue === 'string' &&
-        RATE_VALUES.includes(rateValue) &&
-        tgThreadId != null &&
-        typeof tgThreadId === 'number' &&
-        tgMessageId != null &&
-        typeof tgMessageId === 'number'
-      ) {
-        const photo = await this.postgresService.getPhotoTgGroup(
-          tgChatId,
-          tgThreadId,
-          tgMessageId
+      const photo = await this.postgresService.getPhotoGroup(
+        groupTgChatId,
+        groupTgThreadId,
+        groupTgMessageId
+      )
+
+      if (photo !== undefined) {
+        const check = await this.postgresService.checkRateUserPhoto(
+          authorize.id,
+          photo.id
+        )
+
+        if (check) {
+          const user = await this.postgresService.getUserFull(photo.userId)
+
+          const rate = await this.postgresService.newRate(
+            authorize.id,
+            photo.topicId,
+            photo.id,
+            rateValue,
+            ctx.from
+          )
+
+          const ratesAgg = await this.postgresService.getRatesAgg(photo.id)
+
+          updatePhotoGroup(ctx, user, photo, ratesAgg)
+        } else {
+          await ctx.answerCbQuery(`Ты уже оценил это фото`)
+        }
+      } else {
+        logger.warn(`RatePhotoRequest group photo not found`)
+        console.dir(ratePhotoRequest)
+      }
+    } else {
+      logger.warn(`RatePhotoRequest ignore unknown message`)
+      console.dir(ctx, { depth: 4 })
+    }
+  }
+
+  private wildcardHandler: AppContextHandler = async (ctx) => {
+    const authorize = sureSessionAuthorize(ctx)
+
+    const { type: chatType } = ctx.chat!
+
+    if (chatType === 'supergroup') {
+      const commentPhotoRequest = parseCommentPhotoRequest(ctx)
+
+      if (commentPhotoRequest !== undefined) {
+        const {
+          channelTgChatId,
+          channelTgMessageId,
+          text
+        } = commentPhotoRequest
+
+        const photo = await this.postgresService.getPhotoChannel(
+          channelTgChatId,
+          channelTgMessageId
         )
 
         if (photo !== undefined) {
-          const user = await this.postgresService.getUserFull(photo.userId)
-
-          const check = await this.postgresService.checkRateUserPhoto(
+          const comment = await this.postgresService.newComment(
             authorize.id,
-            photo.id
+            photo.topicId,
+            photo.id,
+            channelTgChatId,
+            channelTgMessageId,
+            text,
+            ctx.from
           )
-
-          if (check) {
-            const rate = await this.postgresService.newRate(
-              authorize.id,
-              photo.topicId,
-              photo.id,
-              rateValue,
-              ctx.from
-            )
-
-            const ratesAgg = await this.postgresService.getRatesAgg(photo.id)
-
-            updatePhotoGroup(ctx, user, photo, ratesAgg)
-          } else {
-            await ctx.answerCbQuery(`Ты уже оценил это фото!`)
-          }
+        } else {
+          logger.warn(`CommentPhotoRequest channel photo not found`)
+          console.dir(commentPhotoRequest)
         }
+      } else {
+        logger.warn(`Wildcard ignore unknown supergroup message`)
+        console.dir(ctx, { depth: 4 })
       }
-  }
-
-  private unknownHandler: AppContextHandler = async (ctx) => {
-    if (ctx.from !== undefined && ctx.chat !== undefined) {
-      const { type: chatType } = ctx.chat
-
-      if (chatType === 'private') {
-        //await ctx.replyWithMarkdownV2(
-        //  `Неизвестная команда`
-        //)
-      }
-
-      logger.warn(`Bot unknown ${chatType} message`)
-      console.dir(ctx, { depth: 4 })
     } else {
-      logger.warn(`Bot unknown message`)
+      logger.warn(`Wildcard ignore unknown message`)
       console.dir(ctx, { depth: 4 })
     }
   }
 
   private exceptionHandler = (error: unknown, ctx: AppContext) => {
     if (error instanceof Error) {
-      logger.error(`App error: ${error.message}`)
+      logger.error(`App fatal: ${error.message}`)
       console.error(error.stack)
       console.dir(ctx, { depth: 4 })
     }
