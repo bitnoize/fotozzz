@@ -31,7 +31,7 @@ export class DeletePhotoController extends BaseController {
   private startSceneHandler: AppContextHandler = async (ctx, next) => {
     const authorize = ctx.session.authorize!
     const navigation = ctx.session.navigation!
-    const deletePhoto = ctx.scene.session.deletePhoto
+    const deletePhoto = ctx.scene.state.deletePhoto
 
     navigation.updatable = false
 
@@ -46,6 +46,8 @@ export class DeletePhotoController extends BaseController {
       )
 
       if (check) {
+        ctx.scene.session.deletePhoto = deletePhoto
+
         ctx.wizard.next()
 
         if (typeof ctx.wizard.step === 'function') {
@@ -103,15 +105,23 @@ export class DeletePhotoController extends BaseController {
 
     const photo = await this.postgresService.getPhoto(deletePhoto.photoId)
 
-    await ctx.telegram.deleteMessage(
-      photo.groupTgChatId,
-      photo.groupTgMessageId
-    )
+    try {
+      await ctx.telegram.deleteMessage(
+        photo.groupTgChatId,
+        photo.groupTgMessageId
+      )
+    } catch (error: unknown) {
+      logger.warn(`failed to delete group photo`)
+    }
 
-    await ctx.telegram.deleteMessage(
-      photo.channelTgChatId,
-      photo.channelTgMessageId
-    )
+    try {
+      await ctx.telegram.deleteMessage(
+        photo.channelTgChatId,
+        photo.channelTgMessageId
+      )
+    } catch (error: unknown) {
+      logger.warn(`failed to delete channel photo`)
+    }
 
     await this.postgresService.deletePhotoUser(
       photo.id,

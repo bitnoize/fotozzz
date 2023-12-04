@@ -821,7 +821,7 @@ export const postNewPhotoChannel = async (
   } = newPhoto
 
   const caption = `${emojiGender} *${nick}*\n` +
-    `Раздел: #${topicName}\n` +
+    `Раздел: \\#${topicName}\n` +
     description
 
   const message = await ctx.telegram.sendPhoto(
