@@ -1,41 +1,32 @@
-import { Scenes, Composer } from 'telegraf'
+import { Scenes, Composer, Markup } from 'telegraf'
 import { message } from 'telegraf/filters'
+import { BaseController } from './base.js'
 import {
   AppOptions,
-  Controller,
   AppContext,
   AppContextHandler,
-  AppContextExceptionHandler
+  AppWizardScene
 } from '../interfaces/app.js'
-import { RedisService } from '../services/redis.js'
-import { PostgresService } from '../services/postgres.js'
+import { ChangeAvatar } from '../interfaces/telegram.js'
 import {
-  wizardNextStep,
-  sureSessionAuthorize,
-  sureSessionNavigation,
-  initSceneSessionChangeAvatar,
-  sureSceneSessionChangeAvatar,
-  dropSceneSessionChangeAvatar,
   isChangeAvatar,
   isPhotoSize,
   replyMainMenu,
-  replyMainError,
   replyChangeAvatarAvatar
 } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
 
-export class ChangeAvatarController implements Controller {
-  scene: Scenes.WizardScene<AppContext>
+export class ChangeAvatarController extends BaseController {
+  readonly scene: AppWizardScene
 
-  private redisService = RedisService.instance()
-  private postgresService = PostgresService.instance()
+  constructor(options: AppOptions) {
+    super(options)
 
-  constructor(private readonly options: AppOptions) {
     this.scene = new Scenes.WizardScene<AppContext>(
       'change-avatar',
       this.startSceneHandler,
-      this.queryAvatarHandler,
-      this.replyAvatarComposer(),
+      this.quaereAvatarHandler,
+      this.answerAvatarComposer(),
       this.finishSceneHandler
     )
 
@@ -43,46 +34,47 @@ export class ChangeAvatarController implements Controller {
   }
 
   private startSceneHandler: AppContextHandler = async (ctx, next) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
+    const authorize = ctx.session.authorize!
+    const navigation = ctx.session.navigation!
 
-    initSceneSessionChangeAvatar(ctx)
+    navigation.updatable = false
 
     const allowedStatuses = ['active', 'penalty']
     if (allowedStatuses.includes(authorize.status)) {
-      return wizardNextStep(ctx, next)
+      ctx.scene.session.changeAvatar = {} as Partial<ChangeAvatar>
+
+      ctx.wizard.next()
+
+      if (typeof ctx.wizard.step === 'function') {
+        return ctx.wizard.step(ctx, next)
+      }
     }
 
-    dropSceneSessionChangeAvatar(ctx)
+    delete ctx.scene.session.changeAvatar
 
     await ctx.scene.leave()
 
-    await replyMainMenu(ctx, authorize, navigation)
+    await replyMainMenu(ctx)
   }
 
-  private queryAvatarHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-
-    await replyChangeAvatarAvatar(ctx, authorize, navigation)
+  private quaereAvatarHandler: AppContextHandler = async (ctx) => {
+    await replyChangeAvatarAvatar(ctx)
 
     ctx.wizard.next()
   }
 
-  private replyAvatarComposer = (): Composer<AppContext> => {
+  private answerAvatarComposer = (): Composer<AppContext> => {
     const composer = new Composer<AppContext>()
 
-    composer.on('photo', this.replyAvatarInputHandler)
+    composer.on('photo', this.answerAvatarInputHandler)
     composer.action('change-avatar-back', this.returnProfileHandler)
-    composer.use(this.replyAvatarUnknownHandler)
+    composer.use(this.answerAvatarUnknownHandler)
 
     return composer
   }
 
-  private replyAvatarInputHandler: AppContextHandler = async (ctx, next) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-    const changeAvatar = sureSceneSessionChangeAvatar(ctx)
+  private answerAvatarInputHandler: AppContextHandler = async (ctx, next) => {
+    const changeAvatar = ctx.scene.session.changeAvatar!
 
     if (ctx.has(message('photo'))) {
       const photo = ctx.message.photo
@@ -92,24 +84,24 @@ export class ChangeAvatarController implements Controller {
       if (isPhotoSize(photoSize)) {
         changeAvatar.avatarTgFileId = photoSize.file_id
 
-        return wizardNextStep(ctx, next)
+        ctx.wizard.next()
+
+        if (typeof ctx.wizard.step === 'function') {
+          return ctx.wizard.step(ctx, next)
+        }
       } else {
-        await replyChangeAvatarAvatar(ctx, authorize, navigation)
+        await replyChangeAvatarAvatar(ctx)
       }
     }
   }
 
-  private replyAvatarUnknownHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-
-    await replyChangeAvatarAvatar(ctx, authorize, navigation)
+  private answerAvatarUnknownHandler: AppContextHandler = async (ctx) => {
+    await replyChangeAvatarAvatar(ctx)
   }
 
   private finishSceneHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-    const changeAvatar = sureSceneSessionChangeAvatar(ctx)
+    const authorize = ctx.session.authorize!
+    const changeAvatar = ctx.scene.session.changeAvatar!
 
     if (!isChangeAvatar(changeAvatar)) {
       throw new Error(`scene session changeAvatar data malformed`)
@@ -120,32 +112,18 @@ export class ChangeAvatarController implements Controller {
       changeAvatar.avatarTgFileId
     )
 
-    dropSceneSessionChangeAvatar(ctx)
+    delete ctx.scene.session.changeAvatar
 
     await ctx.scene.leave()
 
     await ctx.scene.enter('profile')
   }
 
-  private returnProfileHandler: AppContextHandler = async (ctx, next) => {
-    dropSceneSessionChangeAvatar(ctx)
+  private returnProfileHandler: AppContextHandler = async (ctx) => {
+    delete ctx.scene.session.changeAvatar
 
     await ctx.scene.leave()
 
     await ctx.scene.enter('profile')
-  }
-
-  private exceptionHandler: AppContextExceptionHandler = async (error, ctx) => {
-    if (error instanceof Error) {
-      logger.error(`ChangeAvatarScene error: ${error.message}`)
-      console.error(error.stack)
-      console.dir(ctx, { depth: 4 })
-    }
-
-    dropSceneSessionChangeAvatar(ctx)
-
-    await ctx.scene.leave()
-
-    await replyMainError(ctx)
   }
 }

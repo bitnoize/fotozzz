@@ -1,14 +1,17 @@
-import { Scenes, session, Telegraf } from 'telegraf'
+import { Telegraf, Scenes, Markup, session } from 'telegraf'
 import { Redis } from '@telegraf/session/redis'
 import { HttpsProxyAgent } from 'hpagent'
 import {
   AppOptions,
-  Controller,
   AppContext,
   AppSession,
   AppContextHandler,
-  PrepareMainHandler
+  Controller,
 } from './interfaces/app.js'
+import { Navigation, Membership } from './interfaces/telegram.js'
+import { User } from './interfaces/user.js'
+import { Photo } from './interfaces/photo.js'
+import { RateAgg } from './interfaces/rate.js'
 import { RedisService } from './services/redis.js'
 import { PostgresService } from './services/postgres.js'
 import { RegisterController } from './controllers/register.js'
@@ -20,15 +23,6 @@ import { NewPhotoController } from './controllers/new-photo.js'
 import { DeletePhotoController } from './controllers/delete-photo.js'
 import { SearchController } from './controllers/search.js'
 import {
-  blankNavigation,
-  resetNavigation,
-  blankMembership,
-  initSessionAuthorize,
-  sureSessionAuthorize,
-  initSessionNavigation,
-  sureSessionNavigation,
-  initSessionMembership,
-  sureSessionMembership,
   parseChatJoinRequest,
   parseRatePhotoRequest,
   parseCommentPhotoRequest,
@@ -40,11 +34,11 @@ import {
 import { logger } from './logger.js'
 
 export class App {
-  protected redisService = RedisService.instance()
-  protected postgresService = PostgresService.instance()
-
   private agent?: HttpsProxyAgent
   private bot: Telegraf<AppContext>
+
+  protected redisService = RedisService.instance()
+  protected postgresService = PostgresService.instance()
 
   constructor(private readonly options: AppOptions) {
     const { botToken, useProxy, proxyUrl, redisUrl } = this.options
@@ -125,7 +119,7 @@ export class App {
       const user = await this.postgresService.authorizeUser(fromId, ctx.from)
 
       if (user.status !== 'banned') {
-        initSessionAuthorize(ctx, user)
+        ctx.session.authorize = user
 
         await next()
       } else {
@@ -138,11 +132,14 @@ export class App {
   }
 
   private navigationHandler: AppContextHandler = async (ctx, next) => {
-    if (ctx.session.navigation === undefined) {
-      const navigation = blankNavigation()
-
-      initSessionNavigation(ctx, navigation)
+    const navigationBlank: Navigation = {
+      messageId: null,
+      updatable: false,
+      currentPage: 0,
+      totalPages: 0
     }
+
+    ctx.session.navigation ??= navigationBlank
 
     await next()
   }
@@ -150,7 +147,10 @@ export class App {
   private membershipHandler: AppContextHandler = async (ctx, next) => {
     const { groupChatId, channelChatId } = this.options
 
-    const membership = blankMembership()
+    const membership: Membership = {
+      checkGroup: null,
+      checkChannel: null
+    }
 
     const { id: fromId } = ctx.from!
     const { type: chatType } = ctx.chat!
@@ -165,14 +165,14 @@ export class App {
       membership.checkChannel = allowedStatuses.includes(channelMember.status)
     }
 
-    initSessionMembership(ctx, membership)
+    ctx.session.membership = membership
 
     await next()
   }
 
   private startMenuHandler: AppContextHandler = async (ctx) => {
-    await this.prepareMain(ctx, async (authorize, navigation) => {
-      await replyMainMenu(ctx, authorize, navigation)
+    await this.prepareMain(ctx, async () => {
+      await replyMainMenu(ctx)
     })
   }
 
@@ -192,29 +192,6 @@ export class App {
     await this.prepareMain(ctx, async () => {
       await ctx.scene.enter('search')
     })
-  }
-
-  private prepareMain = async (
-    ctx: AppContext,
-    handler: PrepareMainHandler
-  ): Promise<void> => {
-    const { groupUrl, channelUrl } = this.options
-
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-    const membership = sureSessionMembership(ctx)
-
-    if (authorize.status === 'register') {
-      await ctx.scene.enter('register')
-    } else {
-      if (!membership.checkGroup) {
-        await replyMainCheckGroup(ctx, authorize, navigation, groupUrl)
-      } else if (!membership.checkChannel) {
-        await replyMainCheckChannel(ctx, authorize, navigation, channelUrl)
-      } else {
-        await handler(authorize, navigation)
-      }
-    }
   }
 
   private chatJoinRequestHandler: AppContextHandler = async (ctx) => {
@@ -247,7 +224,7 @@ export class App {
   }
 
   private ratePhotoHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
+    const authorize = ctx.session.authorize!
 
     const rateValue = ctx.match[1]
 
@@ -300,7 +277,7 @@ export class App {
   }
 
   private wildcardHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
+    const authorize = ctx.session.authorize!
 
     const { type: chatType } = ctx.chat!
 
@@ -348,6 +325,33 @@ export class App {
       logger.error(`App fatal: ${error.message}`)
       console.error(error.stack)
       console.dir(ctx, { depth: 4 })
+    }
+  }
+
+  private prepareMain = async (
+    ctx: AppContext,
+    handler: () => Promise<void>
+  ): Promise<void> => {
+    const { groupUrl, channelUrl } = this.options
+
+    const authorize = ctx.session.authorize!
+    const navigation = ctx.session.navigation!
+    const membership = ctx.session.membership!
+
+    navigation.updatable = false
+    navigation.currentPage = 0
+    navigation.totalPages = 0
+
+    if (authorize.status === 'register') {
+      await ctx.scene.enter('register')
+    } else {
+      if (!membership.checkGroup) {
+        await replyMainCheckGroup(ctx, groupUrl)
+      } else if (!membership.checkChannel) {
+        await replyMainCheckChannel(ctx, channelUrl)
+      } else {
+        await handler()
+      }
     }
   }
 }

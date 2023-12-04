@@ -1,5 +1,15 @@
 import { Context, Scenes } from 'telegraf'
-import { UserGender, User } from './user.js'
+import {
+  Membership,
+  Navigation,
+  Register,
+  ChangeAvatar,
+  ChangeAbout,
+  NewPhoto,
+  DeletePhoto,
+  Search,
+} from './telegram.js'
+import { User } from './user.js'
 
 export interface AppOptions {
   botToken: string
@@ -12,60 +22,13 @@ export interface AppOptions {
   channelUrl: string
 }
 
-export interface Register {
-  nick: string
-  gender: UserGender
-  avatarTgFileId: string
-  about: string
-}
-
-export interface ChangeAvatar {
-  avatarTgFileId: string
-}
-
-export interface ChangeAbout {
-  about: string
-}
-
-export interface NewPhotoPublish {
-  tgFileId: string
-  topicId: number
-  topicName: string
-  description: string
-  groupTgChatId: number
-  groupTgThreadId: number
-  channelTgChatId: number
-}
-
-export interface NewPhoto extends NewPhotoPublish {
-  groupTgMessageId: number
-  channelTgMessageId: number
-}
-
-export interface DeletePhoto {
-  id: number
-  tgFileId: string
-  description: string
-}
-
 export interface AppWizardSession extends Scenes.WizardSessionData {
   register?: Partial<Register>
   changeAvatar?: Partial<ChangeAvatar>
   changeAbout?: Partial<ChangeAbout>
   newPhoto?: Partial<NewPhoto>
   deletePhoto?: DeletePhoto
-}
-
-export interface Navigation {
-  messageId: number | null
-  updatable: boolean
-  currentPage: number
-  totalPages: number
-}
-
-export interface Membership {
-  checkGroup: boolean | null
-  checkChannel: boolean | null
+  search?: Search
 }
 
 export interface AppSession extends Scenes.WizardSession<AppWizardSession> {
@@ -90,11 +53,9 @@ export type AppContextExceptionHandler = (
   ctx: AppContext
 ) => Promise<unknown | void>
 
-export type PrepareMainHandler = (
-  authorize: User,
-  navigation: Navigation
-) => Promise<void>
+export type AppBaseScene = Scenes.BaseScene<AppContext>
+export type AppWizardScene = Scenes.WizardScene<AppContext>
 
 export interface Controller {
-  scene: Scenes.BaseScene<AppContext> | Scenes.WizardScene<AppContext>
+  scene: AppBaseScene | AppWizardScene
 }

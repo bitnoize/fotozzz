@@ -1,34 +1,22 @@
-import { Scenes } from 'telegraf'
+import { Scenes, Markup } from 'telegraf'
 import { message } from 'telegraf/filters'
+import { BaseController } from './base.js'
 import {
   AppOptions,
-  Controller,
   AppContext,
-  DeletePhoto,
   AppContextHandler,
-  AppContextExceptionHandler
+  AppBaseScene
 } from '../interfaces/app.js'
-import { RedisService } from '../services/redis.js'
-import { PostgresService } from '../services/postgres.js'
-import {
-  resetNavigation,
-  navigationNextPage,
-  navigationPrevPage,
-  sureSessionAuthorize,
-  sureSessionNavigation,
-  replyMainMenu,
-  replyMainError,
-  replyPhotoMenu
-} from '../helpers/telegram.js'
+import { DeletePhoto } from '../interfaces/telegram.js'
+import { replyMainMenu, replyPhotoMenu } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
 
-export class PhotoController implements Controller {
-  scene: Scenes.BaseScene<AppContext>
+export class PhotoController extends BaseController {
+  readonly scene: AppBaseScene
 
-  private redisService = RedisService.instance()
-  private postgresService = PostgresService.instance()
+  constructor(options: AppOptions) {
+    super(options)
 
-  constructor(private readonly options: AppOptions) {
     this.scene = new Scenes.BaseScene<AppContext>('photo')
 
     this.scene.enter(this.enterSceneHandler)
@@ -44,48 +32,60 @@ export class PhotoController implements Controller {
   }
 
   private enterSceneHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
+    const authorize = ctx.session.authorize!
+    const navigation = ctx.session.navigation!
 
-    resetNavigation(navigation)
+    navigation.updatable = false
+    navigation.currentPage = 0
+    navigation.totalPages = 0
 
     const allowedStatuses = ['active', 'penalty']
     if (allowedStatuses.includes(authorize.status)) {
       const photos = await this.postgresService.getPhotosUser(authorize.id)
 
-      await replyPhotoMenu(ctx, authorize, navigation, photos)
+      await replyPhotoMenu(ctx, authorize, photos)
     } else {
       await ctx.scene.leave()
 
-      await replyMainMenu(ctx, authorize, navigation)
+      await replyMainMenu(ctx)
     }
   }
 
   private prevPhotoHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
+    const authorize = ctx.session.authorize!
+    const navigation = ctx.session.navigation!
 
-    navigationPrevPage(navigation)
+    if (
+      navigation.currentPage > 1 &&
+      navigation.currentPage <= navigation.totalPages
+    ) {
+      navigation.currentPage = navigation.currentPage - 1
+    }
 
     const photos = await this.postgresService.getPhotosUser(authorize.id)
 
-    await replyPhotoMenu(ctx, authorize, navigation, photos)
+    await replyPhotoMenu(ctx, authorize, photos)
   }
 
   private nextPhotoHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
+    const authorize = ctx.session.authorize!
+    const navigation = ctx.session.navigation!
 
-    navigationNextPage(navigation)
+    if (
+      navigation.currentPage >= 1 &&
+      navigation.currentPage < navigation.totalPages
+    ) {
+      navigation.currentPage = navigation.currentPage + 1
+    }
 
     const photos = await this.postgresService.getPhotosUser(authorize.id)
 
-    await replyPhotoMenu(ctx, authorize, navigation, photos)
+    await replyPhotoMenu(ctx, authorize, photos)
   }
 
   private deletePhotoHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
+    const authorize = ctx.session.authorize!
+    const navigation = ctx.session.navigation!
 
     const photos = await this.postgresService.getPhotosUser(authorize.id)
 
@@ -96,55 +96,33 @@ export class PhotoController implements Controller {
 
       if (photo !== undefined) {
         const deletePhoto: DeletePhoto = {
-          id: photo.id,
-          tgFileId: photo.tgFileId,
-          description: photo.description
+          photoId: photo.id
         }
 
-        resetNavigation(navigation)
+        navigation.updatable = false
+        navigation.currentPage = 0
+        navigation.totalPages = 0
 
         await ctx.scene.leave()
 
         await ctx.scene.enter('delete-photo', { deletePhoto })
       } else {
-        throw new Error(`can't find photo`)
+        throw new Error(`can't find photo ${photoId}`)
       }
     } else {
-      await replyPhotoMenu(ctx, authorize, navigation, photos)
+      await replyPhotoMenu(ctx, authorize, photos)
     }
   }
 
   private newPhotoHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
+    const navigation = ctx.session.navigation!
 
-    resetNavigation(navigation)
+    navigation.updatable = false
+    navigation.currentPage = 0
+    navigation.totalPages = 0
 
     await ctx.scene.leave()
 
     await ctx.scene.enter('new-photo')
-  }
-
-  private returnMainHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-
-    resetNavigation(navigation)
-
-    await ctx.scene.leave()
-
-    await replyMainMenu(ctx, authorize, navigation)
-  }
-
-  private exceptionHandler: AppContextExceptionHandler = async (error, ctx) => {
-    if (error instanceof Error) {
-      logger.error(`PhotoScene error: ${error.message}`)
-      console.error(error.stack)
-      console.dir(ctx, { depth: 4 })
-    }
-
-    await ctx.scene.leave()
-
-    await replyMainError(ctx)
   }
 }

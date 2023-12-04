@@ -1110,7 +1110,7 @@ SELECT
   id, tg_from_id, nick, gender, status, role, avatar_tg_file_id, about,
   register_time, last_activity_time
 FROM users
-WHERE nick = $1
+WHERE nick ILIKE $1
 `
 
   private readonly insertUserSql = `

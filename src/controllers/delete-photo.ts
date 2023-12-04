@@ -1,39 +1,27 @@
-import { Scenes, Composer } from 'telegraf'
+import { Scenes, Composer, Markup } from 'telegraf'
 import { message } from 'telegraf/filters'
+import { BaseController } from './base.js'
 import {
   AppOptions,
-  Controller,
   AppContext,
   AppContextHandler,
-  AppContextExceptionHandler
+  AppWizardScene
 } from '../interfaces/app.js'
-import { RedisService } from '../services/redis.js'
-import { PostgresService } from '../services/postgres.js'
-import {
-  wizardNextStep,
-  sureSessionAuthorize,
-  sureSessionNavigation,
-  initSceneSessionDeletePhoto,
-  sureSceneSessionDeletePhoto,
-  dropSceneSessionDeletePhoto,
-  replyMainMenu,
-  replyMainError,
-  replyDeletePhotoPhoto
-} from '../helpers/telegram.js'
+import { DeletePhoto } from '../interfaces/telegram.js'
+import { replyMainMenu, replyDeletePhotoPhoto } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
 
-export class DeletePhotoController implements Controller {
-  scene: Scenes.WizardScene<AppContext>
+export class DeletePhotoController extends BaseController {
+  readonly scene: AppWizardScene
 
-  private redisService = RedisService.instance()
-  private postgresService = PostgresService.instance()
+  constructor(options: AppOptions) {
+    super(options)
 
-  constructor(private readonly options: AppOptions) {
     this.scene = new Scenes.WizardScene<AppContext>(
       'delete-photo',
       this.startSceneHandler,
-      this.queryPhotoHandler,
-      this.replyPhotoComposer(),
+      this.quaerePhotoHandler,
+      this.answerPhotoComposer(),
       this.finishSceneHandler
     )
 
@@ -41,76 +29,79 @@ export class DeletePhotoController implements Controller {
   }
 
   private startSceneHandler: AppContextHandler = async (ctx, next) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
+    const authorize = ctx.session.authorize!
+    const navigation = ctx.session.navigation!
+    const deletePhoto = ctx.scene.session.deletePhoto
 
-    const allowedStatuses = ['active']
-    if (allowedStatuses.includes(authorize.status)) {
-      const deletePhoto = ctx.scene.state.deletePhoto
+    navigation.updatable = false
 
-      if (deletePhoto !== undefined) {
-        const checkPhoto = await this.postgresService.checkPhotoUser(
-          deletePhoto.id,
-          authorize.id
-        )
+    const allowedStatuses = ['active', 'penalty']
+    if (
+      deletePhoto !== undefined &&
+      allowedStatuses.includes(authorize.status)
+    ) {
+      const check = await this.postgresService.checkPhotoUser(
+        deletePhoto.photoId,
+        authorize.id
+      )
 
-        if (checkPhoto) {
-          initSceneSessionDeletePhoto(ctx, deletePhoto)
+      if (check) {
+        ctx.wizard.next()
 
-          return wizardNextStep(ctx, next)
+        if (typeof ctx.wizard.step === 'function') {
+          return ctx.wizard.step(ctx, next)
         }
       }
     }
 
-    dropSceneSessionDeletePhoto(ctx)
+    delete ctx.scene.session.deletePhoto
 
     await ctx.scene.leave()
 
-    await replyMainMenu(ctx, authorize, navigation)
+    await replyMainMenu(ctx)
   }
 
-  private queryPhotoHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-    const deletePhoto = sureSceneSessionDeletePhoto(ctx)
+  private quaerePhotoHandler: AppContextHandler = async (ctx) => {
+    const deletePhoto = ctx.scene.session.deletePhoto!
 
-    await replyDeletePhotoPhoto(ctx, authorize, navigation, deletePhoto)
+    const photo = await this.postgresService.getPhoto(deletePhoto.photoId)
+
+    await replyDeletePhotoPhoto(ctx, photo)
 
     ctx.wizard.next()
   }
 
-  private replyPhotoComposer = (): Composer<AppContext> => {
+  private answerPhotoComposer = (): Composer<AppContext> => {
     const composer = new Composer<AppContext>()
 
-    composer.action('delete-photo-next', this.replyPhotoInputHandler)
+    composer.action('delete-photo-next', this.answerPhotoInputHandler)
     composer.action('delete-photo-back', this.returnPhotoHandler)
-    composer.use(this.replyPhotoUnknownHandler)
+    composer.use(this.answerPhotoUnknownHandler)
 
     return composer
   }
 
-  private replyPhotoInputHandler: AppContextHandler = async (ctx, next) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-    const deletePhoto = sureSceneSessionDeletePhoto(ctx)
+  private answerPhotoInputHandler: AppContextHandler = async (ctx, next) => {
+    ctx.wizard.next()
 
-    return wizardNextStep(ctx, next)
+    if (typeof ctx.wizard.step === 'function') {
+      return ctx.wizard.step(ctx, next)
+    }
   }
 
-  private replyPhotoUnknownHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-    const deletePhoto = sureSceneSessionDeletePhoto(ctx)
+  private answerPhotoUnknownHandler: AppContextHandler = async (ctx) => {
+    const deletePhoto = ctx.scene.session.deletePhoto!
 
-    await replyDeletePhotoPhoto(ctx, authorize, navigation, deletePhoto)
+    const photo = await this.postgresService.getPhoto(deletePhoto.photoId)
+
+    await replyDeletePhotoPhoto(ctx, photo)
   }
 
   private finishSceneHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-    const deletePhoto = sureSceneSessionDeletePhoto(ctx)
+    const authorize = ctx.session.authorize!
+    const deletePhoto = ctx.scene.session.deletePhoto!
 
-    const photo = await this.postgresService.getPhoto(deletePhoto.id)
+    const photo = await this.postgresService.getPhoto(deletePhoto.photoId)
 
     await ctx.telegram.deleteMessage(
       photo.groupTgChatId,
@@ -128,7 +119,7 @@ export class DeletePhotoController implements Controller {
       ctx.from
     )
 
-    dropSceneSessionDeletePhoto(ctx)
+    delete ctx.scene.session.deletePhoto
 
     await ctx.scene.leave()
 
@@ -136,24 +127,10 @@ export class DeletePhotoController implements Controller {
   }
 
   private returnPhotoHandler: AppContextHandler = async (ctx) => {
-    dropSceneSessionDeletePhoto(ctx)
+    delete ctx.scene.session.deletePhoto
 
     await ctx.scene.leave()
 
     await ctx.scene.enter('photo')
-  }
-
-  private exceptionHandler: AppContextExceptionHandler = async (error, ctx) => {
-    if (error instanceof Error) {
-      logger.error(`NewPhotoScene error: ${error.message}`)
-      console.error(error.stack)
-      console.dir(ctx, { depth: 4 })
-    }
-
-    dropSceneSessionDeletePhoto(ctx)
-
-    await ctx.scene.leave()
-
-    await replyMainError(ctx)
   }
 }

@@ -1,215 +1,24 @@
 import { Markup } from 'telegraf'
-//import { ReplyKeyboardMarkup, User } from 'telegraf/types'
+import { AppContext } from '../interfaces/app.js'
 import {
-  AppContext,
+  Membership,
+  Navigation,
   Register,
   ChangeAvatar,
   ChangeAbout,
   NewPhoto,
-  NewPhotoPublish,
   DeletePhoto,
-  Membership,
-  Navigation
-} from '../interfaces/app.js'
+  ChatJoinRequest,
+  RatePhotoRequest,
+  CommentPhotoRequest,
+  PhotoSize,
+} from '../interfaces/telegram.js'
 import { UserGender, User, UserFull } from '../interfaces/user.js'
 import { Topic } from '../interfaces/topic.js'
 import { Photo } from '../interfaces/photo.js'
 import { RateAgg } from '../interfaces/rate.js'
-import {
-  ChatJoinRequest,
-  RatePhotoRequest,
-  CommentPhotoRequest,
-  PhotoSize
-} from '../interfaces/telegram.js'
 import { USER_NICK_REGEXP, USER_GENDERS } from '../constants/user.js'
-
-export const wizardNextStep = (
-  ctx: AppContext,
-  next: () => Promise<void>
-): unknown => {
-  ctx.wizard.next()
-
-  if (typeof ctx.wizard.step !== 'function') {
-    throw new Error(`context wizard step lost`)
-  }
-
-  return ctx.wizard.step(ctx, next)
-}
-
-export const blankNavigation = (): Navigation => {
-  const navigation: Navigation = {
-    messageId: null,
-    updatable: false,
-    currentPage: 0,
-    totalPages: 0
-  }
-
-  return navigation
-}
-
-export const resetNavigation = (navigation: Navigation) => {
-  navigation.updatable = false
-  navigation.currentPage = 0
-  navigation.totalPages = 0
-}
-
-export const navigationNextPage = (navigation: Navigation) => {
-  if (
-    navigation.currentPage >= 1 &&
-    navigation.currentPage < navigation.totalPages
-  ) {
-    navigation.currentPage = navigation.currentPage + 1
-  }
-}
-
-export const navigationPrevPage = (navigation: Navigation) => {
-  if (
-    navigation.currentPage > 1 &&
-    navigation.currentPage <= navigation.totalPages
-  ) {
-    navigation.currentPage = navigation.currentPage - 1
-  }
-}
-
-export const blankMembership = (): Membership => {
-  const membership: Membership = {
-    checkGroup: null,
-    checkChannel: null
-  }
-
-  return membership
-}
-
-export const initSessionAuthorize = (ctx: AppContext, user: User) => {
-  ctx.session.authorize = user
-}
-
-export const sureSessionAuthorize = (ctx: AppContext): User => {
-  const authorize = ctx.session.authorize
-  if (authorize === undefined) {
-    throw new Error(`context session authorize lost`)
-  }
-
-  return authorize
-}
-
-export const initSessionMembership = (ctx: AppContext, membership: Membership) => {
-  ctx.session.membership = membership
-}
-
-export const sureSessionMembership = (ctx: AppContext): Membership => {
-  const membership = ctx.session.membership
-  if (membership === undefined) {
-    throw new Error(`context session membership lost`)
-  }
-
-  return membership
-}
-
-export const initSessionNavigation = (ctx: AppContext, navigation: Navigation) => {
-  ctx.session.navigation = navigation
-}
-
-export const sureSessionNavigation = (ctx: AppContext): Navigation => {
-  const navigation = ctx.session.navigation
-  if (navigation === undefined) {
-    throw new Error(`context session navigation lost`)
-  }
-
-  return navigation
-}
-
-export const initSceneSessionRegister = (ctx: AppContext) => {
-  ctx.scene.session.register = {} as Partial<Register>
-}
-
-export const sureSceneSessionRegister = (ctx: AppContext): Partial<Register> => {
-  const register = ctx.scene.session.register
-  if (register === undefined) {
-    throw new Error(`context scene session register lost`)
-  }
-
-  return register
-}
-
-export const dropSceneSessionRegister = (ctx: AppContext) => {
-  delete ctx.scene.session.register
-}
-
-export const initSceneSessionChangeAvatar = (ctx: AppContext) => {
-  ctx.scene.session.changeAvatar = {} as Partial<ChangeAvatar>
-}
-
-export const sureSceneSessionChangeAvatar = (
-  ctx: AppContext
-): Partial<ChangeAvatar> => {
-  const changeAvatar = ctx.scene.session.changeAvatar
-  if (changeAvatar === undefined) {
-    throw new Error(`context scene session changeAvatar lost`)
-  }
-
-  return changeAvatar
-}
-
-export const dropSceneSessionChangeAvatar = (ctx: AppContext) => {
-  delete ctx.scene.session.changeAvatar
-}
-
-export const initSceneSessionChangeAbout = (ctx: AppContext) => {
-  ctx.scene.session.changeAbout = {} as Partial<ChangeAbout>
-}
-
-export const sureSceneSessionChangeAbout = (
-  ctx: AppContext
-): Partial<ChangeAbout> => {
-  const changeAbout = ctx.scene.session.changeAbout
-  if (changeAbout === undefined) {
-    throw new Error(`context scene session changeAbout lost`)
-  }
-
-  return changeAbout
-}
-
-export const dropSceneSessionChangeAbout = (ctx: AppContext) => {
-  delete ctx.scene.session.changeAbout
-}
-
-export const initSceneSessionNewPhoto = (ctx: AppContext) => {
-  ctx.scene.session.newPhoto = {} as Partial<NewPhoto>
-}
-
-export const sureSceneSessionNewPhoto = (ctx: AppContext): Partial<NewPhoto> => {
-  const newPhoto = ctx.scene.session.newPhoto
-  if (newPhoto === undefined) {
-    throw new Error(`context scene session newPhoto lost`)
-  }
-
-  return newPhoto
-}
-
-export const dropSceneSessionNewPhoto = (ctx: AppContext) => {
-  delete ctx.scene.session.newPhoto
-}
-
-export const initSceneSessionDeletePhoto = (
-  ctx: AppContext,
-  deletePhoto: DeletePhoto
-) => {
-  ctx.scene.session.deletePhoto = deletePhoto
-}
-
-export const sureSceneSessionDeletePhoto = (ctx: AppContext): DeletePhoto => {
-  const deletePhoto = ctx.scene.session.deletePhoto
-  if (deletePhoto === undefined) {
-    throw new Error(`context scene session deletePhoto lost`)
-  }
-
-  return deletePhoto
-}
-
-export const dropSceneSessionDeletePhoto = (ctx: AppContext) => {
-  delete ctx.scene.session.deletePhoto
-}
+import { logger } from '../logger.js'
 
 export const parseChatJoinRequest = (
   ctx: AppContext
@@ -330,16 +139,6 @@ export const isUserAbout = (userAbout: unknown): userAbout is string => {
   )
 }
 
-export const isPhotoSize = (photoSize: unknown): photoSize is PhotoSize => {
-  return (
-    photoSize != null &&
-    typeof photoSize === 'object' &&
-    'file_id' in photoSize &&
-    photoSize.file_id != null &&
-    typeof photoSize.file_id === 'string'
-  )
-}
-
 export const isPhotoDescription = (description: unknown): description is string => {
   return (
     description != null &&
@@ -349,7 +148,9 @@ export const isPhotoDescription = (description: unknown): description is string 
   )
 }
 
-export const isRegister = (register: Partial<Register>): register is Register => {
+export const isRegister = (
+  register: Partial<Register>
+): register is Register => {
   return (
     register.nick !== undefined &&
     register.gender !== undefined &&
@@ -370,20 +171,6 @@ export const isChangeAbout = (
   return changeAbout.about !== undefined
 }
 
-export const isNewPhotoPublish = (
-  newPhoto: Partial<NewPhotoPublish>
-): newPhoto is NewPhotoPublish => {
-  return (
-    newPhoto.topicId !== undefined &&
-    newPhoto.topicName !== undefined &&
-    newPhoto.groupTgChatId !== undefined &&
-    newPhoto.groupTgThreadId !== undefined &&
-    newPhoto.channelTgChatId !== undefined &&
-    newPhoto.tgFileId !== undefined &&
-    newPhoto.description !== undefined
-  )
-}
-
 export const isNewPhoto = (newPhoto: Partial<NewPhoto>): newPhoto is NewPhoto => {
   return (
     newPhoto.topicId !== undefined &&
@@ -398,149 +185,26 @@ export const isNewPhoto = (newPhoto: Partial<NewPhoto>): newPhoto is NewPhoto =>
   )
 }
 
-export const keyboardMainCheckGroup = () => {
-  return Markup.inlineKeyboard([
-    Markup.button.callback(`Я уже подписан на группу`, 'main-start')
-  ])
+export const isPhotoSize = (photoSize: unknown): photoSize is PhotoSize => {
+  return (
+    photoSize != null &&
+    typeof photoSize === 'object' &&
+    'file_id' in photoSize &&
+    photoSize.file_id != null &&
+    typeof photoSize.file_id === 'string'
+  )
 }
 
-export const keyboardMainCheckChannel = () => {
-  return Markup.inlineKeyboard([
-    Markup.button.callback(`Я уже подписан на канал`, 'main-start')
-  ])
-}
+const removeLastMessage = async (ctx: AppContext): Promise<void> => {
+  const navigation = ctx.session.navigation!
 
-export const keyboardMainMenu = () => {
-  return Markup.inlineKeyboard([
-    [Markup.button.callback('Профиль', 'main-profile')],
-    [Markup.button.callback('Фото', 'main-photo')],
-    [Markup.button.callback('Поиск', 'main-search')]
-  ])
-}
-
-export const keyboardRegisterGender = () => {
-  return Markup.inlineKeyboard([
-    Markup.button.callback(`Мужской`, 'register-gender-male'),
-    Markup.button.callback(`Женский`, 'register-gender-female'),
-    Markup.button.callback(`Пара`, 'register-gender-couple')
-  ])
-}
-
-export const keyboardProfileMenu = () => {
-  return Markup.inlineKeyboard([
-    [Markup.button.callback('Редактировать аватар', 'profile-change-avatar')],
-    [Markup.button.callback('Редактировать о себе', 'profile-change-about')],
-    [Markup.button.callback('Вернуться в главное меню', 'profile-back')]
-  ])
-}
-
-export const keyboardChangeAvatarAvatar = () => {
-  return Markup.inlineKeyboard([
-    Markup.button.callback('Отмена', 'change-avatar-back')
-  ])
-}
-
-export const keyboardChangeAboutAbout = () => {
-  return Markup.inlineKeyboard([
-    Markup.button.callback('Отмена', 'change-about-back')
-  ])
-}
-
-export const keyboardPhotoMenu = (
-  photo: Photo,
-  navigation: Navigation
-) => {
-  const prevBtn = navigation.currentPage !== 1 ? '<<' : ' '
-  const nextBtn = navigation.currentPage !== navigation.totalPages ? '>>' : ' '
-
-  const {
-    channelTgChatId,
-    channelTgMessageId: messageId
-  } = photo
-
-  const chatId = Math.abs(channelTgChatId).toString().replace(/^100/, '')
-  const url = `https://t.me/c/${chatId}/${messageId}`
-
-  return Markup.inlineKeyboard([
-    [
-      Markup.button.callback(prevBtn, 'photo-prev'),
-      Markup.button.url('*', url),
-      Markup.button.callback(nextBtn, 'photo-next')
-    ],
-    [Markup.button.callback('Удалить', `photo-delete-${photo.id}`)],
-    [Markup.button.callback('Добавить', 'photo-new')],
-    [Markup.button.callback('Вернуться в главное меню', 'photo-back')]
-  ])
-}
-
-export const keyboardPhotoBlank = () => {
-  return Markup.inlineKeyboard([
-    [Markup.button.callback('Добавить', 'photo-new')],
-    [Markup.button.callback('Вернуться в главное меню', 'photo-back')]
-  ])
-}
-
-export const keyboardNewPhotoPhoto = () => {
-  return Markup.inlineKeyboard([Markup.button.callback('Отмена', 'new-photo-back')])
-}
-
-export const keyboardNewPhotoDescription = () => {
-  return Markup.inlineKeyboard([Markup.button.callback('Отмена', 'new-photo-back')])
-}
-
-export const keyboardNewPhotoTopics = (topics: Topic[]) => {
-  const topicsButtons = topics.map((topic) => {
-    return [Markup.button.callback(topic.name, `new-photo-topic-${topic.id}`)]
-  })
-
-  return Markup.inlineKeyboard([
-    ...topicsButtons,
-    [Markup.button.callback('Отмена', 'new-photo-back')]
-  ])
-}
-
-export const keyboardNewPhotoPublish = () => {
-  return Markup.inlineKeyboard([
-    Markup.button.callback('Отмена', 'new-photo-back'),
-    Markup.button.callback('Да, конечно!', 'new-photo-publish')
-  ])
-}
-
-export const keyboardDeletePhotoPhoto = () => {
-  return Markup.inlineKeyboard([
-    Markup.button.callback('Отмена', 'delete-photo-back'),
-    Markup.button.callback('Да, удаляем', 'delete-photo-next')
-  ])
-}
-
-export const keyboardSearchIntro = () => {
-  return Markup.inlineKeyboard([
-    [Markup.button.callback('Вернуться в главное меню', 'search-back')]
-  ])
-}
-
-export const keyboardNewPhotoGroup = (
-  channelTgChatId: number,
-  channelTgMessageId: number
-) => {
-  const chatId = Math.abs(channelTgChatId).toString().replace(/^100/, '')
-  const url = `https://t.me/c/${chatId}/${channelTgMessageId}`
-
-  return Markup.inlineKeyboard([
-    [Markup.button.callback('\u{1F92A} Шокирует', 'rate-shock')],
-    [Markup.button.callback('\u{1F60D} Восхищяет', 'rate-amazing')],
-    [Markup.button.callback('\u{1F970} Умиляет', 'rate-cute')],
-    [Markup.button.callback('\u{1F627} Не уместно', 'rate-not_appropriate')],
-    [Markup.button.url('Комментарии', url)]
-  ])
-}
-
-export const removeLastMessage = async (
-  ctx: AppContext,
-  navigation: Navigation
-): Promise<void> => {
-  if (navigation.messageId !== null && !navigation.updatable) {
-    await ctx.deleteMessage(navigation.messageId)
+  const { messageId, updatable } = navigation
+  if (messageId !== null && !updatable) {
+    try {
+      await ctx.deleteMessage(messageId)
+    } catch (error: unknown) {
+      logger.warn(`Navigation deleteMessage ${messageId} failed`)
+    }
 
     navigation.messageId = null
   }
@@ -548,15 +212,18 @@ export const removeLastMessage = async (
 
 export const replyMainCheckGroup = async (
   ctx: AppContext,
-  authorize: User,
-  navigation: Navigation,
   groupUrl: string
 ): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
+  const navigation = ctx.session.navigation!
 
-  const message = await ctx.replyWithMarkdownV2(
+  await removeLastMessage(ctx)
+
+  const message = await ctx.reply(
     `Необходимо подписаться на [группу](${groupUrl})`,
-    keyboardMainCheckGroup()
+    {
+      parse_mode: 'MarkdownV2',
+      ...keyboardMainCheckGroup()
+    }
   )
 
   navigation.messageId = message.message_id
@@ -564,131 +231,158 @@ export const replyMainCheckGroup = async (
 
 export const replyMainCheckChannel = async (
   ctx: AppContext,
-  authorize: User,
-  navigation: Navigation,
   channelUrl: string
 ): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
+  const navigation = ctx.session.navigation!
 
-  const message = await ctx.replyWithMarkdownV2(
+  await removeLastMessage(ctx)
+
+  const message = await ctx.reply(
     `Необходимо подписаться на [канал](${channelUrl})`,
-    keyboardMainCheckChannel()
+    {
+      parse_mode: 'MarkdownV2',
+      ...keyboardMainCheckChannel()
+    }
   )
 
   navigation.messageId = message.message_id
 }
 
-export const replyMainMenu = async (
-  ctx: AppContext,
-  authorize: User,
-  navigation: Navigation
-): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
+export const replyMainMenu = async (ctx: AppContext): Promise<void> => {
+  const authorize = ctx.session.authorize!
+  const navigation = ctx.session.navigation!
+
+  await removeLastMessage(ctx)
 
   const { nick, emojiGender } = authorize
-
-  const message = await ctx.replyWithMarkdownV2(
-    `Бот приветствует тебя, ${emojiGender} *${nick}*\n`,
-    keyboardMainMenu()
+  const message = await ctx.reply(
+    `Бот приветствует тебя, ${emojiGender} *${nick}*`,
+    {
+      parse_mode: 'MarkdownV2',
+      ...keyboardMainMenu()
+    }
   )
 
   navigation.messageId = message.message_id
 }
 
 export const replyMainError = async (ctx: AppContext): Promise<void> => {
-  await ctx.replyWithMarkdownV2(
-    `Произошла непредвиденная ошибка, возврат в главное меню`
-  )
-}
+  const navigation = ctx.session.navigation!
 
-export const replyRegisterNick = async (
-  ctx: AppContext,
-  authorize: User,
-  navigation: Navigation
-): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
+  await removeLastMessage(ctx)
 
-  const message = await ctx.replyWithMarkdownV2(`Выбери ник`)
-
-  navigation.messageId = message.message_id
-}
-
-export const replyRegisterNickUsed = async (
-  ctx: AppContext,
-  authorize: User,
-  navigation: Navigation
-): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
-
-  const message = await ctx.replyWithMarkdownV2(
-    `Этот ник уже используется, выбери другой`
+  const message = await ctx.reply(
+    `Произошла непредвиденная ошибка`,
+    {
+      parse_mode: 'MarkdownV2',
+      ...keyboardMainMenu()
+    }
   )
 
   navigation.messageId = message.message_id
 }
 
-export const replyRegisterNickWrong = async (
-  ctx: AppContext,
-  authorize: User,
-  navigation: Navigation
-): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
+export const replyRegisterNick = async (ctx: AppContext): Promise<void> => {
+  const navigation = ctx.session.navigation!
 
-  const message = await ctx.replyWithMarkdownV2(
-    `Некорректный ввод, попробуй еще раз`
+  await removeLastMessage(ctx)
+
+  const message = await ctx.reply(
+    `Выбери ник`,
+    {
+      parse_mode: 'MarkdownV2'
+    }
   )
 
   navigation.messageId = message.message_id
 }
 
-export const replyRegisterGender = async (
-  ctx: AppContext,
-  authorize: User,
-  navigation: Navigation
-): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
+export const replyRegisterNickUsed = async (ctx: AppContext): Promise<void> => {
+  const navigation = ctx.session.navigation!
 
-  const message = await ctx.replyWithMarkdownV2(
+  await removeLastMessage(ctx)
+
+  const message = await ctx.reply(
+    `Этот ник уже используется, выбери другой`,
+    {
+      parse_mode: 'MarkdownV2'
+    }
+  )
+
+  navigation.messageId = message.message_id
+}
+
+export const replyRegisterNickWrong = async (ctx: AppContext): Promise<void> => {
+  const navigation = ctx.session.navigation!
+
+  await removeLastMessage(ctx)
+
+  const message = await ctx.reply(
+    `Некорректный ник, попробуй еще раз`,
+    {
+      parse_mode: 'MarkdownV2'
+    }
+  )
+
+  navigation.messageId = message.message_id
+}
+
+export const replyRegisterGender = async (ctx: AppContext): Promise<void> => {
+  const navigation = ctx.session.navigation!
+
+  await removeLastMessage(ctx)
+
+  const message = await ctx.reply(
     `Укажи пол`,
-    keyboardRegisterGender()
+    {
+      parse_mode: 'MarkdownV2',
+      ...keyboardRegisterGender()
+    }
   )
 
   navigation.messageId = message.message_id
 }
 
-export const replyRegisterAvatar = async (
-  ctx: AppContext,
-  authorize: User,
-  navigation: Navigation
-): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
+export const replyRegisterAvatar = async (ctx: AppContext): Promise<void> => {
+  const navigation = ctx.session.navigation!
 
-  const message = await ctx.replyWithMarkdownV2(`Загрузи аватар`)
+  await removeLastMessage(ctx)
 
-  navigation.messageId = message.message_id
-}
-
-export const replyRegisterAbout = async (
-  ctx: AppContext,
-  authorize: User,
-  navigation: Navigation
-): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
-
-  const message = await ctx.replyWithMarkdownV2(`Расскажи о себе`)
+  const message = await ctx.reply(
+    `Загрузи фото для аватара`,
+    {
+      parse_mode: 'MarkdownV2'
+    }
+  )
 
   navigation.messageId = message.message_id
 }
 
-export const replyRegisterAboutWrong = async (
-  ctx: AppContext,
-  authorize: User,
-  navigation: Navigation
-): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
+export const replyRegisterAbout = async (ctx: AppContext): Promise<void> => {
+  const navigation = ctx.session.navigation!
 
-  const message = await ctx.replyWithMarkdownV2(
-    `Некорректный ввод, попробуй еще раз`
+  await removeLastMessage(ctx)
+
+  const message = await ctx.reply(
+    `Расскажи о себе`,
+    {
+      parse_mode: 'MarkdownV2'
+    }
+  )
+
+  navigation.messageId = message.message_id
+}
+
+export const replyRegisterAboutWrong = async (ctx: AppContext): Promise<void> => {
+  const navigation = ctx.session.navigation!
+
+  await removeLastMessage(ctx)
+
+  const message = await ctx.reply(
+    `Некорректный ввод, попробуй еще раз`,
+    {
+      parse_mode: 'MarkdownV2'
+    }
   )
 
   navigation.messageId = message.message_id
@@ -696,64 +390,76 @@ export const replyRegisterAboutWrong = async (
 
 export const replyProfileMenu = async (
   ctx: AppContext,
-  authorize: User,
-  navigation: Navigation,
   userFull: UserFull
 ): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
+  const navigation = ctx.session.navigation!
 
-  const { emojiGender, nick, about } = userFull
-  const caption = `${emojiGender} ${nick}\nО себе: ${about}`
+  await removeLastMessage(ctx)
 
-  const message = await ctx.sendPhoto(userFull.avatarTgFileId, {
-    ...keyboardProfileMenu(),
-    //reply_markup: 'MarkdownV2',
-    caption
-  })
+  const {
+    emojiGender,
+    nick,
+    avatarTgFileId,
+    about
+  } = userFull
+
+  const caption = `${emojiGender} *${nick}*\n` + 
+    `О себе: ${about}`
+
+  const message = await ctx.sendPhoto(
+    avatarTgFileId,
+    {
+      caption,
+      parse_mode: 'MarkdownV2',
+      ...keyboardProfileMenu()
+    }
+  )
 
   navigation.messageId = message.message_id
 }
 
-export const replyChangeAvatarAvatar = async (
-  ctx: AppContext,
-  authorize: User,
-  navigation: Navigation
-): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
+export const replyChangeAvatarAvatar = async (ctx: AppContext): Promise<void> => {
+  const navigation = ctx.session.navigation!
 
-  const message = await ctx.replyWithMarkdownV2(
+  await removeLastMessage(ctx)
+
+  const message = await ctx.reply(
     `Загрузи новый аватар`,
-    keyboardChangeAvatarAvatar()
+    {
+      parse_mode: 'MarkdownV2',
+      ...keyboardChangeAvatarAvatar()
+    }
   )
 
   navigation.messageId = message.message_id
 }
 
-export const replyChangeAboutAbout = async (
-  ctx: AppContext,
-  authorize: User,
-  navigation: Navigation
-): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
+export const replyChangeAboutAbout = async (ctx: AppContext): Promise<void> => {
+  const navigation = ctx.session.navigation!
 
-  const message = await ctx.replyWithMarkdownV2(
+  await removeLastMessage(ctx)
+
+  const message = await ctx.reply(
     `Расскажи о себе`,
-    keyboardChangeAboutAbout()
+    {
+      parse_mode: 'MarkdownV2',
+      ...keyboardChangeAboutAbout()
+    }
   )
 
   navigation.messageId = message.message_id
 }
 
-export const replyChangeAboutAboutWrong = async (
-  ctx: AppContext,
-  authorize: User,
-  navigation: Navigation
-): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
+export const replyChangeAboutAboutWrong = async (ctx: AppContext): Promise<void> => {
+  const navigation = ctx.session.navigation!
 
-  const message = await ctx.replyWithMarkdownV2(
+  await removeLastMessage(ctx)
+
+  const message = await ctx.reply(
     `Некорректный ввод, попробуй еще раз`,
-    keyboardChangeAboutAbout()
+    {
+      ...keyboardChangeAboutAbout()
+    }
   )
 
   navigation.messageId = message.message_id
@@ -761,11 +467,12 @@ export const replyChangeAboutAboutWrong = async (
 
 export const replyPhotoMenu = async (
   ctx: AppContext,
-  authorize: User,
-  navigation: Navigation,
+  user: User,
   photos: Photo[]
 ): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
+  const navigation = ctx.session.navigation!
+
+  await removeLastMessage(ctx)
 
   if (photos.length > 0) {
     navigation.totalPages = photos.length
@@ -784,7 +491,7 @@ export const replyPhotoMenu = async (
     const caption = `${photo.description}\n` +
       `Фото ${navigation.currentPage} из ${navigation.totalPages}`
 
-    const keyboard = keyboardPhotoMenu(photo, navigation)
+    const keyboard = keyboardPhotoMenu(navigation, photo)
 
     if (navigation.updatable) {
       await ctx.editMessageMedia(
@@ -793,52 +500,57 @@ export const replyPhotoMenu = async (
           media: photo.tgFileId
         },
         {
-          ...keyboard,
-          //reply_markup: 'MarkdownV2',
+          ...keyboard
         }
       )
 
       await ctx.editMessageCaption(
         caption,
         {
+          parse_mode: 'MarkdownV2',
           ...keyboard
         }
       )
     } else {
       navigation.updatable = true
 
-      const message = await ctx.sendPhoto(photo.tgFileId, {
-        ...keyboard,
-        //reply_markup: 'MarkdownV2',
-        caption
-      })
+      const message = await ctx.sendPhoto(
+        photo.tgFileId,
+        {
+          caption,
+          parse_mode: 'MarkdownV2',
+          ...keyboard
+        }
+      )
 
       navigation.messageId = message.message_id
     }
   } else {
-    const message = await ctx.replyWithMarkdownV2(
-      `У вас нет опубликованных фото\n` +
-      `Отправьте мне фото для публикации\n` +
-      `Вы можете загрузить 3 фото в течении 24 часов`,
-      keyboardPhotoBlank()
+    const message = await ctx.reply(
+      `У тебя нет опубликованных фото\n` +
+      `Отправь мне фото для публикации\n` +
+      `Ты можешь загрузить 3 фото в течении 24 часов`,
+      {
+        parse_mode: 'MarkdownV2',
+        ...keyboardPhotoBlank()
+      }
     )
 
     navigation.messageId = message.message_id
-
-    resetNavigation(navigation)
   }
 }
 
-export const replyNewPhotoPhoto = async (
-  ctx: AppContext,
-  authorize: User,
-  navigation: Navigation
-): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
+export const replyNewPhotoPhoto = async (ctx: AppContext): Promise<void> => {
+  const navigation = ctx.session.navigation!
 
-  const message = await ctx.replyWithMarkdownV2(
+  await removeLastMessage(ctx)
+
+  const message = await ctx.reply(
     `Загрузи фотографию`,
-    keyboardNewPhotoPhoto()
+    {
+      parse_mode: 'MarkdownV2',
+      ...keyboardNewPhotoPhoto()
+    }
   )
 
   navigation.messageId = message.message_id
@@ -846,45 +558,50 @@ export const replyNewPhotoPhoto = async (
 
 export const replyNewPhotoTopics = async (
   ctx: AppContext,
-  authorize: User,
-  navigation: Navigation,
   topics: Topic[]
 ): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
+  const navigation = ctx.session.navigation!
 
-  const message = await ctx.replyWithMarkdownV2(
+  await removeLastMessage(ctx)
+
+  const message = await ctx.reply(
     `Выбери раздел`,
-    keyboardNewPhotoTopics(topics)
+    {
+      parse_mode: 'MarkdownV2',
+      ...keyboardNewPhotoTopics(topics)
+    }
   )
 
   navigation.messageId = message.message_id
 }
 
-export const replyNewPhotoDescription = async (
-  ctx: AppContext,
-  authorize: User,
-  navigation: Navigation
-): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
+export const replyNewPhotoDescription = async (ctx: AppContext): Promise<void> => {
+  const navigation = ctx.session.navigation!
 
-  const message = await ctx.replyWithMarkdownV2(
+  await removeLastMessage(ctx)
+
+  const message = await ctx.reply(
     `Описание для фото`,
-    keyboardNewPhotoDescription()
+    {
+      parse_mode: 'MarkdownV2',
+      ...keyboardNewPhotoDescription()
+    }
   )
 
   navigation.messageId = message.message_id
 }
 
-export const replyNewPhotoDescriptionWrong = async (
-  ctx: AppContext,
-  authorize: User,
-  navigation: Navigation
-): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
+export const replyNewPhotoDescriptionWrong = async (ctx: AppContext): Promise<void> => {
+  const navigation = ctx.session.navigation!
 
-  const message = await ctx.replyWithMarkdownV2(
+  await removeLastMessage(ctx)
+
+  const message = await ctx.reply(
     `Некорректный ввод, попробуй еще раз`,
-    keyboardNewPhotoDescription()
+    {
+      parse_mode: 'MarkdownV2',
+      ...keyboardNewPhotoDescription()
+    }
   )
 
   navigation.messageId = message.message_id
@@ -892,23 +609,24 @@ export const replyNewPhotoDescriptionWrong = async (
 
 export const replyNewPhotoPublish = async (
   ctx: AppContext,
-  authorize: User,
-  navigation: Navigation,
-  newPhoto: NewPhotoPublish
+  newPhoto: NewPhoto
 ): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
+  const navigation = ctx.session.navigation!
 
-  const { topicName, description } = newPhoto
+  await removeLastMessage(ctx)
 
-  const caption =
-    `*Опубликовать фото?*\n` + `Раздел: ${topicName}\n` + `Описание: ${description}`
+  const { topicName, tgFileId, description } = newPhoto
+
+  const caption = `*Опубликовать фото?*\n` +
+    `Раздел: ${topicName}\n` +
+    `Описание: ${description}`
 
   const message = await ctx.sendPhoto(
-    newPhoto.tgFileId,
+    tgFileId,
     {
+      caption,
+      parse_mode: 'MarkdownV2',
       ...keyboardNewPhotoPublish(),
-      //reply_markup: 'MarkdownV2',
-      caption
     }
   )
 
@@ -917,39 +635,22 @@ export const replyNewPhotoPublish = async (
 
 export const replyDeletePhotoPhoto = async (
   ctx: AppContext,
-  authorize: User,
-  navigation: Navigation,
-  deletePhoto: DeletePhoto
+  photo: Photo
 ): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
+  const navigation = ctx.session.navigation!
 
-  const { description } = deletePhoto
+  await removeLastMessage(ctx)
 
-  const caption = `*Точно удалить фото?*\n` + description
+  const { tgFileId, description } = photo
+
+  const caption = `*Точно удалить это фото?*\n` + description
 
   const message = await ctx.sendPhoto(
-    deletePhoto.tgFileId,
+    tgFileId,
     {
-      ...keyboardDeletePhotoPhoto(),
-      //reply_markup: 'MarkdownV2',
-      caption
-    }
-  )
-
-  navigation.messageId = message.message_id
-}
-
-export const replySearchIntro = async (
-  ctx: AppContext,
-  authorize: User,
-  navigation: Navigation,
-): Promise<void> => {
-  await removeLastMessage(ctx, navigation)
-
-  const message = await ctx.reply(
-    `Введи ник для поиска`,
-    {
-      ...keyboardSearchIntro(),
+      caption,
+      parse_mode: 'MarkdownV2',
+      ...keyboardDeletePhotoPhoto()
     }
   )
 
@@ -958,27 +659,56 @@ export const replySearchIntro = async (
 
 export const postNewPhotoGroup = async (
   ctx: AppContext,
-  authorize: User,
-  navigation: Navigation,
-  newPhoto: NewPhotoPublish
+  user: User,
+  newPhoto: NewPhoto
 ): Promise<number> => {
-  const { nick, emojiGender } = authorize
+  const { nick, emojiGender } = user
   const {
-    channelTgChatId,
-    channelTgMessageId,
+    groupTgChatId,
+    groupTgThreadId,
+    tgFileId,
     description
   } = newPhoto
 
   const caption = `${emojiGender} *${nick}*\n` + description
 
   const message = await ctx.telegram.sendPhoto(
-    newPhoto.groupTgChatId,
-    newPhoto.tgFileId,
+    groupTgChatId,
+    tgFileId,
     {
-      ...keyboardNewPhotoGroup(channelTgChatId, channelTgMessageId),
-      message_thread_id: newPhoto.groupTgThreadId,
-      //reply_markup: 'MarkdownV2',
-      caption
+      message_thread_id: groupTgThreadId,
+      caption,
+      parse_mode: 'MarkdownV2',
+      ...keyboardNewPhotoGroup(newPhoto),
+    }
+  )
+
+  return message.message_id
+}
+
+export const postNewPhotoChannel = async (
+  ctx: AppContext,
+  user: User,
+  newPhoto: NewPhoto
+): Promise<number> => {
+  const { nick, emojiGender } = user
+  const {
+    topicName,
+    channelTgChatId,
+    tgFileId,
+    description
+  } = newPhoto
+
+  const caption = `${emojiGender} *${nick}*\n` +
+    `Раздел: #${topicName}\n` +
+    description
+
+  const message = await ctx.telegram.sendPhoto(
+    channelTgChatId,
+    tgFileId,
+    {
+      caption,
+      parse_mode: 'MarkdownV2',
     }
   )
 
@@ -987,14 +717,15 @@ export const postNewPhotoGroup = async (
 
 export const updatePhotoGroup = async (
   ctx: AppContext,
-  authorize: User,
+  user: User,
   photo: Photo,
   ratesAgg: RateAgg[]
 ): Promise<void> => {
-  const { nick, emojiGender } = authorize
+  const { nick, emojiGender } = user
   const {
-    channelTgChatId,
-    channelTgMessageId,
+    groupTgChatId,
+    groupTgThreadId,
+    groupTgMessageId,
     description
   } = photo
 
@@ -1015,38 +746,164 @@ export const updatePhotoGroup = async (
     `Оценки: ${ratesView}`
 
   await ctx.telegram.editMessageCaption(
-    photo.groupTgChatId,
-    photo.groupTgMessageId,
+    groupTgChatId,
+    groupTgMessageId,
     undefined,
     caption,
     {
-      message_thread_id: photo.groupTgThreadId,
-      ...keyboardNewPhotoGroup(channelTgChatId, channelTgMessageId)
+      message_thread_id: groupTgThreadId,
+      parse_mode: 'MarkdownV2',
+      ...keyboardUpdatePhotoGroup(photo)
     }
   )
 }
 
-export const postNewPhotoChannel = async (
-  ctx: AppContext,
-  authorize: User,
+const keyboardMainCheckGroup = () => {
+  return Markup.inlineKeyboard([
+    Markup.button.callback(`Я уже подписан на группу`, 'main-start')
+  ])
+}
+
+const keyboardMainCheckChannel = () => {
+  return Markup.inlineKeyboard([
+    Markup.button.callback(`Я уже подписан на канал`, 'main-start')
+  ])
+}
+
+const keyboardMainMenu = () => {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('Профиль', 'main-profile')],
+    [Markup.button.callback('Фото', 'main-photo')],
+    [Markup.button.callback('Поиск', 'main-search')]
+  ])
+}
+
+const keyboardRegisterGender = () => {
+  return Markup.inlineKeyboard([
+    Markup.button.callback(`Мужской`, 'register-gender-male'),
+    Markup.button.callback(`Женский`, 'register-gender-female'),
+    Markup.button.callback(`Пара`, 'register-gender-couple')
+  ])
+}
+
+const keyboardProfileMenu = () => {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('Изменить аватар', 'profile-change-avatar')],
+    [Markup.button.callback('Редактировать о себе', 'profile-change-about')],
+    [Markup.button.callback('Вернуться в главное меню', 'profile-back')]
+  ])
+}
+
+const keyboardChangeAvatarAvatar = () => {
+  return Markup.inlineKeyboard([
+    Markup.button.callback('Отмена', 'change-avatar-back')
+  ])
+}
+
+const keyboardChangeAboutAbout = () => {
+  return Markup.inlineKeyboard([
+    Markup.button.callback('Отмена', 'change-about-back')
+  ])
+}
+
+const keyboardPhotoMenu = (
   navigation: Navigation,
-  newPhoto: NewPhotoPublish
-): Promise<number> => {
-  const { nick, emojiGender } = authorize
-  const { topicName, description } = newPhoto
+  photo: Photo
+) => {
+  const prevButton = navigation.currentPage !== 1 ? '<<' : ' '
+  const nextButton = navigation.currentPage !== navigation.totalPages ? '>>' : ' '
 
-  const caption = `${emojiGender} *${nick}*\n` +
-    `Раздел: #${topicName}\n` +
-    description
+  const {
+    channelTgChatId,
+    channelTgMessageId: messageId
+  } = photo
 
-  const message = await ctx.telegram.sendPhoto(
-    newPhoto.channelTgChatId,
-    newPhoto.tgFileId,
-    {
-      //reply_markup: 'MarkdownV2',
-      caption
-    }
-  )
+  const chatId = Math.abs(channelTgChatId).toString().replace(/^100/, '')
+  const url = `https://t.me/c/${chatId}/${messageId}`
 
-  return message.message_id
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback(prevButton, 'photo-prev'),
+      Markup.button.url('*', url),
+      Markup.button.callback(nextButton, 'photo-next')
+    ],
+    [Markup.button.callback('Удалить', `photo-delete-${photo.id}`)],
+    [Markup.button.callback('Добавить', 'photo-new')],
+    [Markup.button.callback('Вернуться в главное меню', 'photo-back')]
+  ])
+}
+
+const keyboardPhotoBlank = () => {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('Добавить', 'photo-new')],
+    [Markup.button.callback('Вернуться в главное меню', 'photo-back')]
+  ])
+}
+
+const keyboardNewPhotoPublish = () => {
+  return Markup.inlineKeyboard([
+    Markup.button.callback('Отмена', 'new-photo-back'),
+    Markup.button.callback('Да, опубликовать', 'new-photo-publish')
+  ])
+}
+
+const keyboardNewPhotoPhoto = () => {
+  return Markup.inlineKeyboard([
+    Markup.button.callback('Отмена', 'new-photo-back')
+  ])
+}
+
+const keyboardNewPhotoDescription = () => {
+  return Markup.inlineKeyboard([
+    Markup.button.callback('Отмена', 'new-photo-back')
+  ])
+}
+
+const keyboardNewPhotoTopics = (topics: Topic[]) => {
+  const topicsButtons = topics.map((topic) => {
+    return [Markup.button.callback(topic.name, `new-photo-topic-${topic.id}`)]
+  })
+
+  return Markup.inlineKeyboard([
+    ...topicsButtons,
+    [Markup.button.callback('Отмена', 'new-photo-back')]
+  ])
+}
+
+export const keyboardDeletePhotoPhoto = () => {
+  return Markup.inlineKeyboard([
+    Markup.button.callback('Отмена', 'delete-photo-back'),
+    Markup.button.callback('Да, удалить', 'delete-photo-next')
+  ])
+}
+
+
+const keyboardNewPhotoGroup = (newPhoto: NewPhoto) => {
+  const { channelTgChatId, channelTgMessageId } = newPhoto
+
+  const chatId = Math.abs(channelTgChatId).toString().replace(/^100/, '')
+  const url = `https://t.me/c/${chatId}/${channelTgMessageId}`
+
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('\u{1F92A} Шокирует', 'rate-shock')],
+    [Markup.button.callback('\u{1F60D} Восхищяет', 'rate-amazing')],
+    [Markup.button.callback('\u{1F970} Умиляет', 'rate-cute')],
+    [Markup.button.callback('\u{1F627} Не уместно', 'rate-not_appropriate')],
+    [Markup.button.url('Комментарии', url)]
+  ])
+}
+
+const keyboardUpdatePhotoGroup = (photo: Photo) => {
+  const { channelTgChatId, channelTgMessageId } = photo
+
+  const chatId = Math.abs(channelTgChatId).toString().replace(/^100/, '')
+  const url = `https://t.me/c/${chatId}/${channelTgMessageId}`
+
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('\u{1F92A} Шокирует', 'rate-shock')],
+    [Markup.button.callback('\u{1F60D} Восхищяет', 'rate-amazing')],
+    [Markup.button.callback('\u{1F970} Умиляет', 'rate-cute')],
+    [Markup.button.callback('\u{1F627} Не уместно', 'rate-not_appropriate')],
+    [Markup.button.url('Комментарии', url)]
+  ])
 }

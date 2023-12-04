@@ -1,31 +1,20 @@
-import { Scenes, Composer } from 'telegraf'
+import { Scenes, Composer, Markup } from 'telegraf'
 import { message } from 'telegraf/filters'
+import { BaseController } from './base.js'
 import {
   AppOptions,
-  Controller,
-  Register,
-  Navigation,
   AppContext,
   AppContextHandler,
-  AppContextExceptionHandler
+  AppWizardScene
 } from '../interfaces/app.js'
-import { RedisService } from '../services/redis.js'
-import { PostgresService } from '../services/postgres.js'
+import { Register } from '../interfaces/telegram.js'
 import {
-  wizardNextStep,
-  initSessionAuthorize,
-  sureSessionAuthorize,
-  sureSessionNavigation,
-  initSceneSessionRegister,
-  sureSceneSessionRegister,
-  dropSceneSessionRegister,
   isUserGender,
   isUserNick,
   isUserAbout,
   isRegister,
   isPhotoSize,
   replyMainMenu,
-  replyMainError,
   replyRegisterNick,
   replyRegisterNickUsed,
   replyRegisterNickWrong,
@@ -36,24 +25,23 @@ import {
 } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
 
-export class RegisterController implements Controller {
-  scene: Scenes.WizardScene<AppContext>
+export class RegisterController extends BaseController {
+  readonly scene: AppWizardScene
 
-  private redisService = RedisService.instance()
-  private postgresService = PostgresService.instance()
+  constructor(options: AppOptions) {
+    super(options)
 
-  constructor(private readonly options: AppOptions) {
     this.scene = new Scenes.WizardScene<AppContext>(
       'register',
       this.startSceneHandler,
-      this.queryNickHandler,
-      this.replyNickComposer(),
-      this.queryGenderHandler,
-      this.replyGenderComposer(),
-      this.queryAvatarHandler,
-      this.replyAvatarComposer(),
-      this.queryAboutHandler,
-      this.replyAboutComposer(),
+      this.quaereNickHandler,
+      this.answerNickComposer(),
+      this.quaereGenderHandler,
+      this.answerGenderComposer(),
+      this.quaereAvatarHandler,
+      this.answerAvatarComposer(),
+      this.quaereAboutHandler,
+      this.answerAboutComposer(),
       this.finishSceneHandler
     )
 
@@ -61,134 +49,127 @@ export class RegisterController implements Controller {
   }
 
   private startSceneHandler: AppContextHandler = async (ctx, next) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
+    const authorize = ctx.session.authorize!
+    const navigation = ctx.session.navigation!
 
-    initSceneSessionRegister(ctx)
+    navigation.updatable = false
 
     if (authorize.status === 'register') {
-      return wizardNextStep(ctx, next)
+      ctx.scene.session.register = {} as Partial<Register>
+
+      ctx.wizard.next()
+
+      if (typeof ctx.wizard.step === 'function') {
+        return ctx.wizard.step(ctx, next)
+      }
     }
 
-    dropSceneSessionRegister(ctx)
+    delete ctx.scene.session.register
 
     await ctx.scene.leave()
 
-    await replyMainMenu(ctx, authorize, navigation)
+    await replyMainMenu(ctx)
   }
 
-  private queryNickHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-
-    await replyRegisterNick(ctx, authorize, navigation)
+  private quaereNickHandler: AppContextHandler = async (ctx) => {
+    await replyRegisterNick(ctx)
 
     ctx.wizard.next()
   }
 
-  private replyNickComposer = (): Composer<AppContext> => {
+  private answerNickComposer = (): Composer<AppContext> => {
     const composer = new Composer<AppContext>()
 
-    composer.on('text', this.replyNickTextHandler)
-    composer.use(this.replyNickUnknownHandler)
+    composer.on('text', this.answerNickInputHandler)
+    composer.use(this.answerNickUnknownHandler)
 
     return composer
   }
 
-  private replyNickTextHandler: AppContextHandler = async (ctx, next) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-    const register = sureSceneSessionRegister(ctx)
+  private answerNickInputHandler: AppContextHandler = async (ctx, next) => {
+    const register = ctx.scene.session.register!
 
     if (ctx.has(message('text'))) {
-      const userNick = ctx.message.text.toLowerCase()
+      const nick = ctx.message.text.toLowerCase()
 
-      if (isUserNick(userNick)) {
-        const isSuccess = await this.postgresService.checkUserNick(userNick)
+      if (isUserNick(nick)) {
+        const check = await this.postgresService.checkUserNick(nick)
 
-        if (isSuccess) {
-          register.nick = userNick
+        if (check) {
+          register.nick = nick
 
-          return wizardNextStep(ctx, next)
+          ctx.wizard.next()
+
+          if (typeof ctx.wizard.step === 'function') {
+            return ctx.wizard.step(ctx, next)
+          }
         } else {
-          await replyRegisterNickUsed(ctx, authorize, navigation)
+          await replyRegisterNickUsed(ctx)
         }
       } else {
-        await replyRegisterNickWrong(ctx, authorize, navigation)
+        await replyRegisterNickWrong(ctx)
       }
     }
   }
 
-  private replyNickUnknownHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-
-    await replyRegisterNick(ctx, authorize, navigation)
+  private answerNickUnknownHandler: AppContextHandler = async (ctx) => {
+    await replyRegisterNick(ctx)
   }
 
-  private queryGenderHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-
-    await replyRegisterGender(ctx, authorize, navigation)
+  private quaereGenderHandler: AppContextHandler = async (ctx) => {
+    await replyRegisterGender(ctx)
 
     ctx.wizard.next()
   }
 
-  private replyGenderComposer = (): Composer<AppContext> => {
+  private answerGenderComposer = (): Composer<AppContext> => {
     const composer = new Composer<AppContext>()
 
-    composer.action(/^register-gender-(\w+)$/, this.replyGenderSelectHandler)
-    composer.use(this.replyGenderUnknownHandler)
+    composer.action(/^register-gender-(\w+)$/, this.answerGenderInputHandler)
+    composer.use(this.answerGenderUnknownHandler)
 
     return composer
   }
 
-  private replyGenderSelectHandler: AppContextHandler = async (ctx, next) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-    const register = sureSceneSessionRegister(ctx)
+  private answerGenderInputHandler: AppContextHandler = async (ctx, next) => {
+    const register = ctx.scene.session.register!
 
-    const userGender = ctx.match[1]
+    const gender = ctx.match[1]
 
-    if (isUserGender(userGender)) {
-      register.gender = userGender
+    if (isUserGender(gender)) {
+      register.gender = gender
 
-      return wizardNextStep(ctx, next)
+      ctx.wizard.next()
+
+      if (typeof ctx.wizard.step === 'function') {
+        return ctx.wizard.step(ctx, next)
+      }
     } else {
-      await replyRegisterGender(ctx, authorize, navigation)
+      await replyRegisterGender(ctx)
     }
   }
 
-  private replyGenderUnknownHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-
-    await replyRegisterGender(ctx, authorize, navigation)
+  private answerGenderUnknownHandler: AppContextHandler = async (ctx) => {
+    await replyRegisterGender(ctx)
   }
 
-  private queryAvatarHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-
-    await replyRegisterAvatar(ctx, authorize, navigation)
+  private quaereAvatarHandler: AppContextHandler = async (ctx) => {
+    await replyRegisterAvatar(ctx)
 
     ctx.wizard.next()
   }
 
-  private replyAvatarComposer = (): Composer<AppContext> => {
+  private answerAvatarComposer = (): Composer<AppContext> => {
     const composer = new Composer<AppContext>()
 
-    composer.on('photo', this.replyAvatarPhotoHandler)
-    composer.use(this.replyAvatarUnknownHandler)
+    composer.on('photo', this.answerAvatarInputHandler)
+    composer.use(this.answerAvatarUnknownHandler)
 
     return composer
   }
 
-  private replyAvatarPhotoHandler: AppContextHandler = async (ctx, next) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-    const register = sureSceneSessionRegister(ctx)
+  private answerAvatarInputHandler: AppContextHandler = async (ctx, next) => {
+    const register = ctx.scene.session.register!
 
     if (ctx.has(message('photo'))) {
       const photo = ctx.message.photo
@@ -198,67 +179,63 @@ export class RegisterController implements Controller {
       if (isPhotoSize(photoSize)) {
         register.avatarTgFileId = photoSize.file_id
 
-        return wizardNextStep(ctx, next)
+        ctx.wizard.next()
+
+        if (typeof ctx.wizard.step === 'function') {
+          return ctx.wizard.step(ctx, next)
+        }
       } else {
-        await replyRegisterAvatar(ctx, authorize, navigation)
+        await replyRegisterAvatar(ctx)
       }
     }
   }
 
-  private replyAvatarUnknownHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-
-    await replyRegisterAvatar(ctx, authorize, navigation)
+  private answerAvatarUnknownHandler: AppContextHandler = async (ctx) => {
+    await replyRegisterAvatar(ctx)
   }
 
-  private queryAboutHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-
-    await replyRegisterAbout(ctx, authorize, navigation)
+  private quaereAboutHandler: AppContextHandler = async (ctx) => {
+    await replyRegisterAbout(ctx)
 
     ctx.wizard.next()
   }
 
-  private replyAboutComposer = (): Composer<AppContext> => {
+  private answerAboutComposer = (): Composer<AppContext> => {
     const composer = new Composer<AppContext>()
 
-    composer.on('text', this.replyAboutTextHandler)
-    composer.use(this.replyAboutUnknownHandler)
+    composer.on('text', this.answerAboutInputHandler)
+    composer.use(this.answerAboutUnknownHandler)
 
     return composer
   }
 
-  private replyAboutTextHandler: AppContextHandler = async (ctx, next) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-    const register = sureSceneSessionRegister(ctx)
+  private answerAboutInputHandler: AppContextHandler = async (ctx, next) => {
+    const register = ctx.scene.session.register!
 
     if (ctx.has(message('text'))) {
-      const userAbout = ctx.message.text
+      const about = ctx.message.text
 
-      if (isUserAbout(userAbout)) {
-        register.about = userAbout
+      if (isUserAbout(about)) {
+        register.about = about
 
-        return wizardNextStep(ctx, next)
+        ctx.wizard.next()
+
+        if (typeof ctx.wizard.step === 'function') {
+          return ctx.wizard.step(ctx, next)
+        }
       } else {
-        await replyRegisterAboutWrong(ctx, authorize, navigation)
+        await replyRegisterAboutWrong(ctx)
       }
     }
   }
 
-  private replyAboutUnknownHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-
-    await replyRegisterAbout(ctx, authorize, navigation)
+  private answerAboutUnknownHandler: AppContextHandler = async (ctx) => {
+    await replyRegisterAbout(ctx)
   }
 
   private finishSceneHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-    const register = sureSceneSessionRegister(ctx)
+    const authorize = ctx.session.authorize!
+    const register = ctx.scene.session.register!
 
     if (!isRegister(register)) {
       throw new Error(`scene session register data malformed`)
@@ -273,25 +250,13 @@ export class RegisterController implements Controller {
       ctx.from
     )
 
-    initSessionAuthorize(ctx, user)
-    dropSceneSessionRegister(ctx)
+    ctx.session.authorize = user
+
+    delete ctx.scene.session.register
 
     await ctx.scene.leave()
 
-    await replyMainMenu(ctx, user, navigation)
-  }
-
-  private exceptionHandler: AppContextExceptionHandler = async (error, ctx) => {
-    if (error instanceof Error) {
-      logger.error(`RegisterScene error: ${error.message}`)
-      console.error(error.stack)
-      console.dir(ctx, { depth: 4 })
-    }
-
-    dropSceneSessionRegister(ctx)
-
-    await ctx.scene.leave()
-
-    await replyMainError(ctx)
+    await replyMainMenu(ctx)
   }
 }
+

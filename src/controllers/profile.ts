@@ -1,30 +1,22 @@
-import { Scenes } from 'telegraf'
+import { Scenes, Markup } from 'telegraf'
 import { message } from 'telegraf/filters'
+import { BaseController } from './base.js'
 import {
   AppOptions,
-  Controller,
   AppContext,
   AppContextHandler,
-  AppContextExceptionHandler
+  AppBaseScene
 } from '../interfaces/app.js'
-import { RedisService } from '../services/redis.js'
-import { PostgresService } from '../services/postgres.js'
-import {
-  sureSessionAuthorize,
-  sureSessionNavigation,
-  replyMainMenu,
-  replyMainError,
-  replyProfileMenu
-} from '../helpers/telegram.js'
+import { UserFull } from '../interfaces/user.js'
+import { replyMainMenu, replyProfileMenu } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
 
-export class ProfileController implements Controller {
-  scene: Scenes.BaseScene<AppContext>
+export class ProfileController extends BaseController {
+  readonly scene: AppBaseScene
 
-  private redisService = RedisService.instance()
-  private postgresService = PostgresService.instance()
+  constructor(options: AppOptions) {
+    super(options)
 
-  constructor(private readonly options: AppOptions) {
     this.scene = new Scenes.BaseScene<AppContext>('profile')
 
     this.scene.enter(this.enterSceneHandler)
@@ -38,18 +30,20 @@ export class ProfileController implements Controller {
   }
 
   private enterSceneHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
+    const authorize = ctx.session.authorize!
+    const navigation = ctx.session.navigation!
+
+    navigation.updatable = false
 
     const allowedStatuses = ['active', 'penalty']
     if (allowedStatuses.includes(authorize.status)) {
       const userFull = await this.postgresService.getUserFull(authorize.id)
 
-      await replyProfileMenu(ctx, authorize, navigation, userFull)
+      await replyProfileMenu(ctx, userFull)
     } else {
       await ctx.scene.leave()
 
-      await replyMainMenu(ctx, authorize, navigation)
+      await replyMainMenu(ctx)
     }
   }
 
@@ -63,26 +57,5 @@ export class ProfileController implements Controller {
     await ctx.scene.leave()
 
     await ctx.scene.enter('change-about')
-  }
-
-  private returnMainHandler: AppContextHandler = async (ctx) => {
-    const authorize = sureSessionAuthorize(ctx)
-    const navigation = sureSessionNavigation(ctx)
-
-    await ctx.scene.leave()
-
-    await replyMainMenu(ctx, authorize, navigation)
-  }
-
-  private exceptionHandler: AppContextExceptionHandler = async (error, ctx) => {
-    if (error instanceof Error) {
-      logger.error(`ProfileScene error: ${error.message}`)
-      console.error(error.stack)
-      console.dir(ctx, { depth: 4 })
-    }
-
-    await ctx.scene.leave()
-
-    await replyMainError(ctx)
   }
 }
