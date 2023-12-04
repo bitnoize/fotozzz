@@ -219,9 +219,9 @@ export const replyMainCheckGroup = async (
   await removeLastMessage(ctx)
 
   const message = await ctx.reply(
-    `Необходимо подписаться на [группу](${groupUrl})`,
+    `Необходимо подписаться на <a href="${groupUrl}">группу</a>`,
     {
-      parse_mode: 'MarkdownV2',
+      parse_mode: 'HTML',
       ...keyboardMainCheckGroup()
     }
   )
@@ -238,9 +238,9 @@ export const replyMainCheckChannel = async (
   await removeLastMessage(ctx)
 
   const message = await ctx.reply(
-    `Необходимо подписаться на [канал](${channelUrl})`,
+    `Необходимо подписаться на <a href="${channelUrl}">канал</a>`,
     {
-      parse_mode: 'MarkdownV2',
+      parse_mode: 'HTML',
       ...keyboardMainCheckChannel()
     }
   )
@@ -256,9 +256,9 @@ export const replyMainMenu = async (ctx: AppContext): Promise<void> => {
 
   const { nick, emojiGender } = authorize
   const message = await ctx.reply(
-    `Бот приветствует тебя, ${emojiGender} *${nick}*`,
+    `Бот приветствует тебя, ${emojiGender} <b>${nick}</b>`,
     {
-      parse_mode: 'MarkdownV2',
+      parse_mode: 'HTML',
       ...keyboardMainMenu()
     }
   )
@@ -274,7 +274,6 @@ export const replyMainError = async (ctx: AppContext): Promise<void> => {
   const message = await ctx.reply(
     `Произошла непредвиденная ошибка`,
     {
-      parse_mode: 'MarkdownV2',
       ...keyboardMainMenu()
     }
   )
@@ -290,7 +289,7 @@ export const replyRegisterNick = async (ctx: AppContext): Promise<void> => {
   const message = await ctx.reply(
     `Выбери ник`,
     {
-      parse_mode: 'MarkdownV2'
+      parse_mode: 'HTML'
     }
   )
 
@@ -305,7 +304,7 @@ export const replyRegisterNickUsed = async (ctx: AppContext): Promise<void> => {
   const message = await ctx.reply(
     `Этот ник уже используется, выбери другой`,
     {
-      parse_mode: 'MarkdownV2'
+      parse_mode: 'HTML'
     }
   )
 
@@ -320,7 +319,7 @@ export const replyRegisterNickWrong = async (ctx: AppContext): Promise<void> => 
   const message = await ctx.reply(
     `Некорректный ник, попробуй еще раз`,
     {
-      parse_mode: 'MarkdownV2'
+      parse_mode: 'HTML'
     }
   )
 
@@ -335,7 +334,7 @@ export const replyRegisterGender = async (ctx: AppContext): Promise<void> => {
   const message = await ctx.reply(
     `Укажи пол`,
     {
-      parse_mode: 'MarkdownV2',
+      parse_mode: 'HTML',
       ...keyboardRegisterGender()
     }
   )
@@ -351,7 +350,7 @@ export const replyRegisterAvatar = async (ctx: AppContext): Promise<void> => {
   const message = await ctx.reply(
     `Загрузи фото для аватара`,
     {
-      parse_mode: 'MarkdownV2'
+      parse_mode: 'HTML'
     }
   )
 
@@ -366,7 +365,7 @@ export const replyRegisterAbout = async (ctx: AppContext): Promise<void> => {
   const message = await ctx.reply(
     `Расскажи о себе`,
     {
-      parse_mode: 'MarkdownV2'
+      parse_mode: 'HTML'
     }
   )
 
@@ -381,7 +380,7 @@ export const replyRegisterAboutWrong = async (ctx: AppContext): Promise<void> =>
   const message = await ctx.reply(
     `Некорректный ввод, попробуй еще раз`,
     {
-      parse_mode: 'MarkdownV2'
+      parse_mode: 'HTML'
     }
   )
 
@@ -403,14 +402,14 @@ export const replyProfileMenu = async (
     about
   } = userFull
 
-  const caption = `${emojiGender} *${nick}*\n` + 
+  const caption = `${emojiGender} <b>${nick}</b>\n` + 
     `О себе: ${about}`
 
   const message = await ctx.sendPhoto(
     avatarTgFileId,
     {
       caption,
-      parse_mode: 'MarkdownV2',
+      parse_mode: 'HTML',
       ...keyboardProfileMenu()
     }
   )
@@ -426,7 +425,7 @@ export const replyChangeAvatarAvatar = async (ctx: AppContext): Promise<void> =>
   const message = await ctx.reply(
     `Загрузи новый аватар`,
     {
-      parse_mode: 'MarkdownV2',
+      parse_mode: 'HTML',
       ...keyboardChangeAvatarAvatar()
     }
   )
@@ -442,7 +441,7 @@ export const replyChangeAboutAbout = async (ctx: AppContext): Promise<void> => {
   const message = await ctx.reply(
     `Расскажи о себе`,
     {
-      parse_mode: 'MarkdownV2',
+      parse_mode: 'HTML',
       ...keyboardChangeAboutAbout()
     }
   )
@@ -507,7 +506,7 @@ export const replyPhotoMenu = async (
       await ctx.editMessageCaption(
         caption,
         {
-          parse_mode: 'MarkdownV2',
+          parse_mode: 'HTML',
           ...keyboard
         }
       )
@@ -518,7 +517,7 @@ export const replyPhotoMenu = async (
         photo.tgFileId,
         {
           caption,
-          parse_mode: 'MarkdownV2',
+          parse_mode: 'HTML',
           ...keyboard
         }
       )
@@ -531,7 +530,7 @@ export const replyPhotoMenu = async (
       `Отправь мне фото для публикации\n` +
       `Ты можешь загрузить 3 фото в течении 24 часов`,
       {
-        parse_mode: 'MarkdownV2',
+        parse_mode: 'HTML',
         ...keyboardPhotoBlank()
       }
     )
@@ -548,7 +547,7 @@ export const replyNewPhotoPhoto = async (ctx: AppContext): Promise<void> => {
   const message = await ctx.reply(
     `Загрузи фотографию`,
     {
-      parse_mode: 'MarkdownV2',
+      parse_mode: 'HTML',
       ...keyboardNewPhotoPhoto()
     }
   )
@@ -567,7 +566,7 @@ export const replyNewPhotoTopics = async (
   const message = await ctx.reply(
     `Выбери раздел`,
     {
-      parse_mode: 'MarkdownV2',
+      parse_mode: 'HTML',
       ...keyboardNewPhotoTopics(topics)
     }
   )
@@ -583,7 +582,7 @@ export const replyNewPhotoDescription = async (ctx: AppContext): Promise<void> =
   const message = await ctx.reply(
     `Описание для фото`,
     {
-      parse_mode: 'MarkdownV2',
+      parse_mode: 'HTML',
       ...keyboardNewPhotoDescription()
     }
   )
@@ -599,7 +598,7 @@ export const replyNewPhotoDescriptionWrong = async (ctx: AppContext): Promise<vo
   const message = await ctx.reply(
     `Некорректный ввод, попробуй еще раз`,
     {
-      parse_mode: 'MarkdownV2',
+      parse_mode: 'HTML',
       ...keyboardNewPhotoDescription()
     }
   )
@@ -617,7 +616,7 @@ export const replyNewPhotoPublish = async (
 
   const { topicName, tgFileId, description } = newPhoto
 
-  const caption = `*Опубликовать фото?*\n` +
+  const caption = `Опубликовать фото?\n` +
     `Раздел: ${topicName}\n` +
     `Описание: ${description}`
 
@@ -625,7 +624,7 @@ export const replyNewPhotoPublish = async (
     tgFileId,
     {
       caption,
-      parse_mode: 'MarkdownV2',
+      parse_mode: 'HTML',
       ...keyboardNewPhotoPublish(),
     }
   )
@@ -643,13 +642,13 @@ export const replyDeletePhotoPhoto = async (
 
   const { tgFileId, description } = photo
 
-  const caption = `*Точно удалить это фото?*\n` + description
+  const caption = `Точно удалить это фото?\n` + description
 
   const message = await ctx.sendPhoto(
     tgFileId,
     {
       caption,
-      parse_mode: 'MarkdownV2',
+      parse_mode: 'HTML',
       ...keyboardDeletePhotoPhoto()
     }
   )
@@ -665,7 +664,7 @@ export const replySearchWelcome = async (ctx: AppContext): Promise<void> => {
   const message = await ctx.reply(
     `Введи ник для поиска`,
     {
-      parse_mode: 'MarkdownV2',
+      parse_mode: 'HTML',
       ...keyboardSearchMenu(),
     }
   )
@@ -681,7 +680,7 @@ export const replySearchNickWrong = async (ctx: AppContext): Promise<void> => {
   const message = await ctx.reply(
     `Некорректный ник, попробуй еще раз`,
     {
-      parse_mode: 'MarkdownV2',
+      parse_mode: 'HTML',
       ...keyboardSearchMenu(),
     }
   )
@@ -697,7 +696,7 @@ export const replySearchUserNotFound = async (ctx: AppContext): Promise<void> =>
   const message = await ctx.reply(
     `Пользователь с указанным ником не найден, попробуй еще раз`,
     {
-      parse_mode: 'MarkdownV2',
+      parse_mode: 'HTML',
       ...keyboardSearchMenu(),
     }
   )
@@ -728,7 +727,9 @@ export const replySearchUserFound = async (
       throw new Error(`can't get user photo by index`)
     }
 
-    const caption = `${photo.description}\n` +
+    const { tgFileId, description } = photo
+
+    const caption = `${description}\n` +
       `Фото ${navigation.currentPage} из ${navigation.totalPages}`
 
     const keyboard = keyboardSearchUserFound(navigation, photo)
@@ -737,7 +738,7 @@ export const replySearchUserFound = async (
       await ctx.editMessageMedia(
         {
           type: 'photo',
-          media: photo.tgFileId
+          media: tgFileId
         },
         {
           ...keyboard
@@ -747,7 +748,7 @@ export const replySearchUserFound = async (
       await ctx.editMessageCaption(
         caption,
         {
-          parse_mode: 'MarkdownV2',
+          parse_mode: 'HTML',
           ...keyboard
         }
       )
@@ -755,10 +756,10 @@ export const replySearchUserFound = async (
       navigation.updatable = true
 
       const message = await ctx.sendPhoto(
-        photo.tgFileId,
+        tgFileId,
         {
           caption,
-          parse_mode: 'MarkdownV2',
+          parse_mode: 'HTML',
           ...keyboard
         }
       )
@@ -769,7 +770,7 @@ export const replySearchUserFound = async (
     const message = await ctx.reply(
       `Пользователь еще не опубликовал фотографий`,
       {
-        parse_mode: 'MarkdownV2',
+        parse_mode: 'HTML',
         ...keyboardSearchMenu()
       }
     )
@@ -791,7 +792,7 @@ export const postNewPhotoGroup = async (
     description
   } = newPhoto
 
-  const caption = `${emojiGender} *${nick}*\n` + description
+  const caption = `${emojiGender} <b>${nick}</b>\n` + description
 
   const message = await ctx.telegram.sendPhoto(
     groupTgChatId,
@@ -799,7 +800,7 @@ export const postNewPhotoGroup = async (
     {
       message_thread_id: groupTgThreadId,
       caption,
-      parse_mode: 'MarkdownV2',
+      parse_mode: 'HTML',
       ...keyboardNewPhotoGroup(newPhoto),
     }
   )
@@ -820,8 +821,8 @@ export const postNewPhotoChannel = async (
     description
   } = newPhoto
 
-  const caption = `${emojiGender} *${nick}*\n` +
-    `Раздел: \\#${topicName}\n` +
+  const caption = `${emojiGender} <b>${nick}</b>\n` +
+    `Раздел: #${topicName}\n` +
     description
 
   const message = await ctx.telegram.sendPhoto(
@@ -829,7 +830,7 @@ export const postNewPhotoChannel = async (
     tgFileId,
     {
       caption,
-      parse_mode: 'MarkdownV2',
+      parse_mode: 'HTML',
     }
   )
 
@@ -862,7 +863,7 @@ export const updatePhotoGroup = async (
     }
   }).join(' ')
 
-  const caption = `${emojiGender} *${nick}*\n` +
+  const caption = `${emojiGender} <b>${nick}</b>\n` +
     `${description}\n` +
     `Оценки: ${ratesView}`
 
@@ -873,7 +874,7 @@ export const updatePhotoGroup = async (
     caption,
     {
       message_thread_id: groupTgThreadId,
-      parse_mode: 'MarkdownV2',
+      parse_mode: 'HTML',
       ...keyboardUpdatePhotoGroup(photo)
     }
   )

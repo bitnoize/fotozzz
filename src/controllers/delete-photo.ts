@@ -111,7 +111,7 @@ export class DeletePhotoController extends BaseController {
         photo.groupTgMessageId
       )
     } catch (error: unknown) {
-      logger.warn(`failed to delete group photo`)
+      logger.error(error)
     }
 
     try {
@@ -120,7 +120,7 @@ export class DeletePhotoController extends BaseController {
         photo.channelTgMessageId
       )
     } catch (error: unknown) {
-      logger.warn(`failed to delete channel photo`)
+      logger.error(error)
     }
 
     await this.postgresService.deletePhotoUser(
