@@ -657,6 +657,127 @@ export const replyDeletePhotoPhoto = async (
   navigation.messageId = message.message_id
 }
 
+export const replySearchWelcome = async (ctx: AppContext): Promise<void> => {
+  const navigation = ctx.session.navigation!
+
+  await removeLastMessage(ctx)
+
+  const message = await ctx.reply(
+    `Введи ник для поиска`,
+    {
+      parse_mode: 'MarkdownV2',
+      ...keyboardSearchMenu(),
+    }
+  )
+
+  navigation.messageId = message.message_id
+}
+
+export const replySearchNickWrong = async (ctx: AppContext): Promise<void> => {
+  const navigation = ctx.session.navigation!
+
+  await removeLastMessage(ctx)
+
+  const message = await ctx.reply(
+    `Некорректный ник, попробуй еще раз`,
+    {
+      parse_mode: 'MarkdownV2',
+      ...keyboardSearchMenu(),
+    }
+  )
+
+  navigation.messageId = message.message_id
+}
+
+export const replySearchUserNotFound = async (ctx: AppContext): Promise<void> => {
+  const navigation = ctx.session.navigation!
+
+  await removeLastMessage(ctx)
+
+  const message = await ctx.reply(
+    `Пользователь с указанным ником не найден, попробуй еще раз`,
+    {
+      parse_mode: 'MarkdownV2',
+      ...keyboardSearchMenu(),
+    }
+  )
+
+  navigation.messageId = message.message_id
+}
+
+export const replySearchUserFound = async (
+  ctx: AppContext,
+  userFull: UserFull,
+  photos: Photo[]
+): Promise<void> => {
+  const navigation = ctx.session.navigation!
+
+  await removeLastMessage(ctx)
+
+  if (photos.length > 0) {
+    navigation.totalPages = photos.length
+
+    if (navigation.currentPage < 1) {
+      navigation.currentPage = 1
+    } else if (navigation.currentPage > navigation.totalPages) {
+      navigation.currentPage = navigation.totalPages
+    }
+
+    const photo = photos[navigation.currentPage - 1]
+    if (photo === undefined) {
+      throw new Error(`can't get user photo by index`)
+    }
+
+    const caption = `${photo.description}\n` +
+      `Фото ${navigation.currentPage} из ${navigation.totalPages}`
+
+    const keyboard = keyboardSearchUserFound(navigation, photo)
+
+    if (navigation.updatable) {
+      await ctx.editMessageMedia(
+        {
+          type: 'photo',
+          media: photo.tgFileId
+        },
+        {
+          ...keyboard
+        }
+      )
+
+      await ctx.editMessageCaption(
+        caption,
+        {
+          parse_mode: 'MarkdownV2',
+          ...keyboard
+        }
+      )
+    } else {
+      navigation.updatable = true
+
+      const message = await ctx.sendPhoto(
+        photo.tgFileId,
+        {
+          caption,
+          parse_mode: 'MarkdownV2',
+          ...keyboard
+        }
+      )
+
+      navigation.messageId = message.message_id
+    }
+  } else {
+    const message = await ctx.reply(
+      `Пользователь еще не опубликовал фотографий`,
+      {
+        parse_mode: 'MarkdownV2',
+        ...keyboardSearchMenu()
+      }
+    )
+
+    navigation.messageId = message.message_id
+  }
+}
+
 export const postNewPhotoGroup = async (
   ctx: AppContext,
   user: User,
@@ -877,6 +998,33 @@ export const keyboardDeletePhotoPhoto = () => {
   ])
 }
 
+export const keyboardSearchMenu = () => {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('Вернуться в главное меню', 'search-back')]
+  ])
+}
+
+export const keyboardSearchUserFound = (navigation: Navigation, photo: Photo) => {
+  const prevButton = navigation.currentPage !== 1 ? '<<' : ' '
+  const nextButton = navigation.currentPage !== navigation.totalPages ? '>>' : ' '
+
+  const {
+    channelTgChatId,
+    channelTgMessageId: messageId
+  } = photo
+
+  const chatId = Math.abs(channelTgChatId).toString().replace(/^100/, '')
+  const url = `https://t.me/c/${chatId}/${messageId}`
+
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback(prevButton, 'search-prev'),
+      Markup.button.url('*', url),
+      Markup.button.callback(nextButton, 'search-next')
+    ],
+    [Markup.button.callback('Вернуться в главное меню', 'search-back')]
+  ])
+}
 
 const keyboardNewPhotoGroup = (newPhoto: NewPhoto) => {
   const { channelTgChatId, channelTgMessageId } = newPhoto

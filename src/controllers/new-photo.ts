@@ -285,6 +285,10 @@ export class NewPhotoController extends BaseController {
   private answerPublishUnknownHandler: AppContextHandler = async (ctx) => {
     const newPhoto = ctx.scene.session.newPhoto!
 
+    if (!isNewPhoto(newPhoto)) {
+      throw new Error(`scene session newPhoto data malformed`)
+    }
+
     await replyNewPhotoPublish(ctx, newPhoto)
   }
 
