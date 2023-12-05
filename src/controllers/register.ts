@@ -50,9 +50,8 @@ export class RegisterController extends BaseController {
 
   private startSceneHandler: AppContextHandler = async (ctx, next) => {
     const authorize = ctx.session.authorize!
-    const navigation = ctx.session.navigation!
 
-    navigation.updatable = false
+    this.resetNavigation(ctx)
 
     if (authorize.status === 'register') {
       ctx.scene.session.register = {} as Partial<Register>
@@ -63,8 +62,6 @@ export class RegisterController extends BaseController {
         return ctx.wizard.step(ctx, next)
       }
     }
-
-    delete ctx.scene.session.register
 
     await ctx.scene.leave()
 
@@ -251,8 +248,6 @@ export class RegisterController extends BaseController {
     )
 
     ctx.session.authorize = user
-
-    delete ctx.scene.session.register
 
     await ctx.scene.leave()
 

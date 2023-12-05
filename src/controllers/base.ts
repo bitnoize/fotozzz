@@ -35,12 +35,56 @@ export abstract class BaseController implements Controller {
   }
 
   protected returnMainHandler: AppContextHandler = async (ctx) => {
-    const navigation = ctx.session.navigation!
-
-    navigation.updatable = false
-
     await ctx.scene.leave()
 
     await replyMainMenu(ctx)
+  }
+
+  protected returnProfileHandler: AppContextHandler = async (ctx) => {
+    await ctx.scene.leave()
+
+    await ctx.scene.enter('profile')
+  }
+
+  protected returnPhotoHandler: AppContextHandler = async (ctx) => {
+    await ctx.scene.leave()
+
+    await ctx.scene.enter('photo')
+  }
+
+  protected returnSearchHandler: AppContextHandler = async (ctx) => {
+    await ctx.scene.leave()
+
+    await ctx.scene.enter('search')
+  }
+
+  protected resetNavigation = (ctx: AppContext) => {
+    const navigation = ctx.session.navigation!
+
+    navigation.updatable = false
+    navigation.currentPage = 0
+    navigation.totalPages = 0
+  }
+
+  protected prevPageNavigation = (ctx: AppContext) => {
+    const navigation = ctx.session.navigation!
+
+    if (
+      navigation.currentPage > 1 &&
+      navigation.currentPage <= navigation.totalPages
+    ) {
+      navigation.currentPage = navigation.currentPage - 1
+    }
+  }
+
+  protected nextPageNavigation = (ctx: AppContext) => {
+    const navigation = ctx.session.navigation!
+
+    if (
+      navigation.currentPage >= 1 &&
+      navigation.currentPage < navigation.totalPages
+    ) {
+      navigation.currentPage = navigation.currentPage + 1
+    }
   }
 }

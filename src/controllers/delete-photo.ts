@@ -30,10 +30,9 @@ export class DeletePhotoController extends BaseController {
 
   private startSceneHandler: AppContextHandler = async (ctx, next) => {
     const authorize = ctx.session.authorize!
-    const navigation = ctx.session.navigation!
     const deletePhoto = ctx.scene.state.deletePhoto
 
-    navigation.updatable = false
+    this.resetNavigation(ctx)
 
     const allowedStatuses = ['active', 'penalty']
     if (
@@ -55,8 +54,6 @@ export class DeletePhotoController extends BaseController {
         }
       }
     }
-
-    delete ctx.scene.session.deletePhoto
 
     await ctx.scene.leave()
 
@@ -110,11 +107,7 @@ export class DeletePhotoController extends BaseController {
         photo.groupTgChatId,
         photo.groupTgMessageId
       )
-    } catch (error: unknown) {
-      logger.error(error)
-    }
 
-    try {
       await ctx.telegram.deleteMessage(
         photo.channelTgChatId,
         photo.channelTgMessageId
@@ -128,16 +121,6 @@ export class DeletePhotoController extends BaseController {
       authorize.id,
       ctx.from
     )
-
-    delete ctx.scene.session.deletePhoto
-
-    await ctx.scene.leave()
-
-    await ctx.scene.enter('photo')
-  }
-
-  private returnPhotoHandler: AppContextHandler = async (ctx) => {
-    delete ctx.scene.session.deletePhoto
 
     await ctx.scene.leave()
 

@@ -1,4 +1,4 @@
-import { Scenes, Markup } from 'telegraf'
+import { Scenes } from 'telegraf'
 import { message } from 'telegraf/filters'
 import { BaseController } from './base.js'
 import {
@@ -33,11 +33,8 @@ export class PhotoController extends BaseController {
 
   private enterSceneHandler: AppContextHandler = async (ctx) => {
     const authorize = ctx.session.authorize!
-    const navigation = ctx.session.navigation!
 
-    navigation.updatable = false
-    navigation.currentPage = 0
-    navigation.totalPages = 0
+    this.resetNavigation(ctx)
 
     const allowedStatuses = ['active', 'penalty']
     if (allowedStatuses.includes(authorize.status)) {
@@ -53,14 +50,8 @@ export class PhotoController extends BaseController {
 
   private prevPhotoHandler: AppContextHandler = async (ctx) => {
     const authorize = ctx.session.authorize!
-    const navigation = ctx.session.navigation!
 
-    if (
-      navigation.currentPage > 1 &&
-      navigation.currentPage <= navigation.totalPages
-    ) {
-      navigation.currentPage = navigation.currentPage - 1
-    }
+    this.prevPageNavigation(ctx)
 
     const photos = await this.postgresService.getPhotosUser(authorize.id)
 
@@ -69,14 +60,8 @@ export class PhotoController extends BaseController {
 
   private nextPhotoHandler: AppContextHandler = async (ctx) => {
     const authorize = ctx.session.authorize!
-    const navigation = ctx.session.navigation!
 
-    if (
-      navigation.currentPage >= 1 &&
-      navigation.currentPage < navigation.totalPages
-    ) {
-      navigation.currentPage = navigation.currentPage + 1
-    }
+    this.nextPageNavigation(ctx)
 
     const photos = await this.postgresService.getPhotosUser(authorize.id)
 
@@ -85,7 +70,6 @@ export class PhotoController extends BaseController {
 
   private deletePhotoHandler: AppContextHandler = async (ctx) => {
     const authorize = ctx.session.authorize!
-    const navigation = ctx.session.navigation!
 
     const photos = await this.postgresService.getPhotosUser(authorize.id)
 
@@ -99,10 +83,6 @@ export class PhotoController extends BaseController {
           photoId: photo.id
         }
 
-        navigation.updatable = false
-        navigation.currentPage = 0
-        navigation.totalPages = 0
-
         await ctx.scene.leave()
 
         await ctx.scene.enter('delete-photo', { deletePhoto })
@@ -115,12 +95,6 @@ export class PhotoController extends BaseController {
   }
 
   private newPhotoHandler: AppContextHandler = async (ctx) => {
-    const navigation = ctx.session.navigation!
-
-    navigation.updatable = false
-    navigation.currentPage = 0
-    navigation.totalPages = 0
-
     await ctx.scene.leave()
 
     await ctx.scene.enter('new-photo')

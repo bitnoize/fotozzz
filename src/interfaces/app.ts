@@ -7,7 +7,7 @@ import {
   ChangeAbout,
   NewPhoto,
   DeletePhoto,
-  Search,
+  ShowUser,
 } from './telegram.js'
 import { User } from './user.js'
 
@@ -28,7 +28,7 @@ export interface AppWizardSession extends Scenes.WizardSessionData {
   changeAbout?: Partial<ChangeAbout>
   newPhoto?: Partial<NewPhoto>
   deletePhoto?: DeletePhoto
-  search?: Search
+  showUser?: ShowUser
 }
 
 export interface AppSession extends Scenes.WizardSession<AppWizardSession> {

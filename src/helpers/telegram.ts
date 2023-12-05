@@ -210,6 +210,28 @@ const removeLastMessage = async (ctx: AppContext): Promise<void> => {
   }
 }
 
+const redrawMessage = async (
+  ctx: AppContext,
+  handler: () => Promise<{ message_id: number } | undefined>
+): Promise<void> => {
+  const navigation = ctx.session.navigation!
+
+  const { messageId, updatable } = navigation
+  if (messageId !== null && !updatable) {
+    try {
+      await ctx.deleteMessage(messageId)
+    } catch (error: unknown) {
+      logger.warn(error)
+    }
+  }
+
+  const message = await handler()
+
+  if (message != undefined) {
+    navigation.messageId = message.message_id
+  }
+}
+
 export const replyMainCheckGroup = async (
   ctx: AppContext,
   groupUrl: string
@@ -250,20 +272,17 @@ export const replyMainCheckChannel = async (
 
 export const replyMainMenu = async (ctx: AppContext): Promise<void> => {
   const authorize = ctx.session.authorize!
-  const navigation = ctx.session.navigation!
 
-  await removeLastMessage(ctx)
-
-  const { nick, emojiGender } = authorize
-  const message = await ctx.reply(
-    `Бот приветствует тебя, ${emojiGender} <b>${nick}</b>`,
-    {
-      parse_mode: 'HTML',
-      ...keyboardMainMenu()
-    }
-  )
-
-  navigation.messageId = message.message_id
+  await redrawMessage(ctx, async () => {
+    const { nick, emojiGender } = authorize
+    return await ctx.reply(
+      `Бот приветствует тебя, ${emojiGender} <b>${nick}</b>`,
+      {
+        parse_mode: 'HTML',
+        ...keyboardMainMenu()
+      }
+    )
+  })
 }
 
 export const replyMainError = async (ctx: AppContext): Promise<void> => {
@@ -665,7 +684,7 @@ export const replySearchWelcome = async (ctx: AppContext): Promise<void> => {
     `Введи ник для поиска`,
     {
       parse_mode: 'HTML',
-      ...keyboardSearchMenu(),
+      ...keyboardSearchWelcome(),
     }
   )
 
@@ -673,110 +692,138 @@ export const replySearchWelcome = async (ctx: AppContext): Promise<void> => {
 }
 
 export const replySearchNickWrong = async (ctx: AppContext): Promise<void> => {
-  const navigation = ctx.session.navigation!
-
-  await removeLastMessage(ctx)
-
-  const message = await ctx.reply(
-    `Некорректный ник, попробуй еще раз`,
-    {
-      parse_mode: 'HTML',
-      ...keyboardSearchMenu(),
-    }
-  )
-
-  navigation.messageId = message.message_id
+  await redrawMessage(ctx, async () => {
+    return await ctx.reply(
+      `Некорректный ник, попробуй еще раз`,
+      {
+        parse_mode: 'HTML',
+        ...keyboardSearchWelcome()
+      }
+    )
+  })
 }
 
 export const replySearchUserNotFound = async (ctx: AppContext): Promise<void> => {
-  const navigation = ctx.session.navigation!
-
-  await removeLastMessage(ctx)
-
-  const message = await ctx.reply(
-    `Пользователь с указанным ником не найден, попробуй еще раз`,
-    {
-      parse_mode: 'HTML',
-      ...keyboardSearchMenu(),
-    }
-  )
-
-  navigation.messageId = message.message_id
+  await redrawMessage(ctx, async () => {
+    return await ctx.reply(
+      `Пользователь с указанным ником не найден, попробуй еще раз`,
+      {
+        parse_mode: 'HTML',
+        ...keyboardSearchWelcome()
+      }
+    )
+  })
 }
 
 export const replySearchUserFound = async (
+  ctx: AppContext,
+  userFull: UserFull
+): Promise<void> => {
+  await redrawMessage(ctx, async () => {
+    const {
+      id,
+      emojiGender,
+      nick,
+      avatarTgFileId,
+      about,
+      photosTotal,
+      commentsTotal
+    } = userFull
+
+    const caption = `${emojiGender} <b>${nick}</b>\n` +
+      `О себе: ${about}\n` +
+      `Фото: ${photosTotal}\n` +
+      `Комментарии: ${commentsTotal}`
+
+    return await ctx.sendPhoto(
+      avatarTgFileId,
+      {
+        caption,
+        parse_mode: 'HTML',
+        ...keyboardSearchUserFound(id, photosTotal)
+      }
+    )
+  })
+}
+
+export const replyShowUserMenu = async (
   ctx: AppContext,
   userFull: UserFull,
   photos: Photo[]
 ): Promise<void> => {
   const navigation = ctx.session.navigation!
 
-  await removeLastMessage(ctx)
+  await redrawMessage(ctx, async () => {
+    if (photos.length > 0) {
+      navigation.totalPages = photos.length
 
-  if (photos.length > 0) {
-    navigation.totalPages = photos.length
-
-    if (navigation.currentPage < 1) {
-      navigation.currentPage = 1
-    } else if (navigation.currentPage > navigation.totalPages) {
-      navigation.currentPage = navigation.totalPages
-    }
-
-    const photo = photos[navigation.currentPage - 1]
-    if (photo === undefined) {
-      throw new Error(`can't get user photo by index`)
-    }
-
-    const { tgFileId, description } = photo
-
-    const caption = `${description}\n` +
-      `Фото ${navigation.currentPage} из ${navigation.totalPages}`
-
-    const keyboard = keyboardSearchUserFound(navigation, photo)
-
-    if (navigation.updatable) {
-      await ctx.editMessageMedia(
-        {
-          type: 'photo',
-          media: tgFileId
-        },
-        {
-          ...keyboard
-        }
-      )
-
-      await ctx.editMessageCaption(
-        caption,
-        {
-          parse_mode: 'HTML',
-          ...keyboard
-        }
-      )
-    } else {
-      navigation.updatable = true
-
-      const message = await ctx.sendPhoto(
-        tgFileId,
-        {
-          caption,
-          parse_mode: 'HTML',
-          ...keyboard
-        }
-      )
-
-      navigation.messageId = message.message_id
-    }
-  } else {
-    const message = await ctx.reply(
-      `Пользователь еще не опубликовал фотографий`,
-      {
-        parse_mode: 'HTML',
-        ...keyboardSearchMenu()
+      if (navigation.currentPage < 1) {
+        navigation.currentPage = 1
+      } else if (navigation.currentPage > navigation.totalPages) {
+        navigation.currentPage = navigation.totalPages
       }
-    )
 
-    navigation.messageId = message.message_id
-  }
+      const photo = photos[navigation.currentPage - 1]
+      if (photo === undefined) {
+        throw new Error(`can't get user photo by index`)
+      }
+
+      const { currentPage, totalPages } = navigation
+      const { channelTgChatId, channelTgMessageId, tgFileId, description } = photo
+
+      const caption =
+        `Описание: ${description}\n` +
+        `Фото ${currentPage} из ${totalPages}`
+
+      const keyboard = keyboardShowUserMenu(
+        currentPage,
+        totalPages,
+        channelTgChatId,
+        channelTgMessageId
+      )
+
+      if (navigation.updatable) {
+        await ctx.editMessageMedia(
+          {
+            type: 'photo',
+            media: tgFileId
+          },
+          {
+            ...keyboard
+          }
+        )
+
+        await ctx.editMessageCaption(
+          caption,
+          {
+            parse_mode: 'HTML',
+            ...keyboard
+          }
+        )
+      } else {
+        navigation.updatable = true
+
+        return await ctx.sendPhoto(
+          tgFileId,
+          {
+            caption,
+            parse_mode: 'HTML',
+            ...keyboard
+          }
+        )
+      }
+    } else {
+      return await ctx.reply(
+        `Пользователь еще не опубликовал фотографий`,
+        {
+          parse_mode: 'HTML',
+          ...keyboardShowUserBlank()
+        }
+      )
+    }
+
+    return undefined
+  })
 }
 
 export const postNewPhotoGroup = async (
@@ -999,31 +1046,57 @@ export const keyboardDeletePhotoPhoto = () => {
   ])
 }
 
-export const keyboardSearchMenu = () => {
+export const keyboardSearchWelcome = () => {
   return Markup.inlineKeyboard([
     [Markup.button.callback('Вернуться в главное меню', 'search-back')]
   ])
 }
 
-export const keyboardSearchUserFound = (navigation: Navigation, photo: Photo) => {
-  const prevButton = navigation.currentPage !== 1 ? '<<' : ' '
-  const nextButton = navigation.currentPage !== navigation.totalPages ? '>>' : ' '
+export const keyboardSearchUserFound = (
+  userId: number,
+  photosTotal: number
+) => {
+  const buttons = []
 
-  const {
-    channelTgChatId,
-    channelTgMessageId: messageId
-  } = photo
+  if (photosTotal > 0) {
+    buttons.push(
+      [Markup.button.callback('Просмотреть фото', `search-show-${userId}`)]
+    )
+  }
 
-  const chatId = Math.abs(channelTgChatId).toString().replace(/^100/, '')
-  const url = `https://t.me/c/${chatId}/${messageId}`
+  buttons.push(
+    [Markup.button.callback('Вернуться в главное меню', 'search-back')]
+  )
+
+  return Markup.inlineKeyboard(buttons)
+}
+
+export const keyboardShowUserMenu = (
+  currentPage: number,
+  totalPages: number,
+  channelTgChatId: number,
+  channelTgMessageId: number
+) => {
+  const prevButton = currentPage !== 1 ? '<<' : ' '
+  const nextButton = currentPage !== totalPages ? '>>' : ' '
+
+  const channelTgChatIdFix =
+    Math.abs(channelTgChatId).toString().replace(/^100/, '')
+  const url = `https://t.me/c/${channelTgChatIdFix}/${channelTgMessageId}`
 
   return Markup.inlineKeyboard([
     [
-      Markup.button.callback(prevButton, 'search-prev'),
+      Markup.button.callback(prevButton, 'show-user-prev'),
       Markup.button.url('*', url),
-      Markup.button.callback(nextButton, 'search-next')
+      Markup.button.callback(nextButton, 'show-user-next')
     ],
-    [Markup.button.callback('Вернуться в главное меню', 'search-back')]
+    [Markup.button.callback('Вернуться в поиск', 'show-user-back')]
+  ])
+}
+
+export const keyboardShowUserBlank = () => {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('Вернуться в поиск', 'show-user-back')]
   ])
 }
 

@@ -1,4 +1,4 @@
-import { Scenes, Composer, Markup } from 'telegraf'
+import { Scenes, Composer } from 'telegraf'
 import { message } from 'telegraf/filters'
 import { BaseController } from './base.js'
 import {
@@ -36,9 +36,8 @@ export class ChangeAboutController extends BaseController {
 
   private startSceneHandler: AppContextHandler = async (ctx, next) => {
     const authorize = ctx.session.authorize!
-    const navigation = ctx.session.navigation!
 
-    navigation.updatable = false
+    this.resetNavigation(ctx)
 
     const allowedStatuses = ['active', 'penalty']
     if (allowedStatuses.includes(authorize.status)) {
@@ -50,8 +49,6 @@ export class ChangeAboutController extends BaseController {
         return ctx.wizard.step(ctx, next)
       }
     }
-
-    delete ctx.scene.session.changeAbout
 
     await ctx.scene.leave()
 
@@ -110,16 +107,6 @@ export class ChangeAboutController extends BaseController {
       authorize.id,
       changeAbout.about
     )
-
-    delete ctx.scene.session.changeAbout
-
-    await ctx.scene.leave()
-
-    await ctx.scene.enter('profile')
-  }
-
-  private returnProfileHandler: AppContextHandler = async (ctx) => {
-    delete ctx.scene.session.changeAbout
 
     await ctx.scene.leave()
 

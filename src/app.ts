@@ -22,6 +22,7 @@ import { PhotoController } from './controllers/photo.js'
 import { NewPhotoController } from './controllers/new-photo.js'
 import { DeletePhotoController } from './controllers/delete-photo.js'
 import { SearchController } from './controllers/search.js'
+import { ShowUserController } from './controllers/show-user.js'
 import {
   parseChatJoinRequest,
   parseRatePhotoRequest,
@@ -72,6 +73,7 @@ export class App {
     controllers.push(new NewPhotoController(this.options))
     controllers.push(new DeletePhotoController(this.options))
     controllers.push(new SearchController(this.options))
+    controllers.push(new ShowUserController(this.options))
 
     const stage = new Scenes.Stage<AppContext>(
       controllers.map((controller) => controller.scene)

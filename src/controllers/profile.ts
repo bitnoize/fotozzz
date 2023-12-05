@@ -31,9 +31,8 @@ export class ProfileController extends BaseController {
 
   private enterSceneHandler: AppContextHandler = async (ctx) => {
     const authorize = ctx.session.authorize!
-    const navigation = ctx.session.navigation!
 
-    navigation.updatable = false
+    this.resetNavigation(ctx)
 
     const allowedStatuses = ['active', 'penalty']
     if (allowedStatuses.includes(authorize.status)) {

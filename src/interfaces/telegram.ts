@@ -43,7 +43,7 @@ export interface DeletePhoto {
   photoId: number
 }
 
-export interface Search {
+export interface ShowUser {
   userId: number
 }
 

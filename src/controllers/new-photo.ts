@@ -48,9 +48,8 @@ export class NewPhotoController extends BaseController {
 
   private startSceneHandler: AppContextHandler = async (ctx, next) => {
     const authorize = ctx.session.authorize!
-    const navigation = ctx.session.navigation!
 
-    navigation.updatable = false
+    this.resetNavigation(ctx)
 
     const allowedStatuses = ['active']
     if (allowedStatuses.includes(authorize.status)) {
@@ -86,8 +85,6 @@ export class NewPhotoController extends BaseController {
         )
       }
     }
-
-    delete ctx.scene.session.newPhoto
 
     await ctx.scene.leave()
 
@@ -317,14 +314,6 @@ export class NewPhotoController extends BaseController {
       ctx.from
     )
 
-    delete ctx.scene.session.newPhoto
-
-    await ctx.scene.leave()
-
-    await ctx.scene.enter('photo')
-  }
-
-  private returnPhotoHandler: AppContextHandler = async (ctx) => {
     await ctx.scene.leave()
 
     await ctx.scene.enter('photo')
