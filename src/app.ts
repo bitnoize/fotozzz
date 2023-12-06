@@ -340,10 +340,6 @@ export class App {
     const navigation = ctx.session.navigation!
     const membership = ctx.session.membership!
 
-    //navigation.updatable = false
-    //navigation.currentPage = 0
-    //navigation.totalPages = 0
-
     if (authorize.status === 'register') {
       await ctx.scene.enter('register')
     } else {

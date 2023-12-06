@@ -35,6 +35,8 @@ export abstract class BaseController implements Controller {
   }
 
   protected returnMainHandler: AppContextHandler = async (ctx) => {
+    this.resetNavigation(ctx)
+
     await ctx.scene.leave()
 
     await replyMainMenu(ctx)
