@@ -578,12 +578,15 @@ export const replyNewPhotoPublish = async (
 
 export const replyDeletePhotoPhoto = async (
   ctx: AppContext,
-  photo: Photo
+  photoFull: PhotoFull
 ): Promise<void> => {
   await redrawMessage(ctx, async () => {
-    const { tgFileId, description } = photo
+    const { topicName, tgFileId, description } = photoFull
 
-    const caption = `Точно удалить это фото?\n` + description
+    const caption =
+      `Точно удалить это фото?\n` +
+      `Описание: ${description}\n` +
+      `Раздел: ${topicName}`
 
     return await ctx.sendPhoto(
       tgFileId,
@@ -763,7 +766,8 @@ export const postNewPhotoChannel = async (
     description
   } = newPhoto
 
-  const caption = `${emojiGender} <b>${nick}</b>\n` +
+  const caption =
+    `${emojiGender} <b>${nick}</b>\n` +
     `Раздел: #${topicName}\n` +
     description
 
