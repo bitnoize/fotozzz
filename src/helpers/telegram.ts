@@ -15,7 +15,7 @@ import {
 } from '../interfaces/telegram.js'
 import { UserGender, User, UserFull } from '../interfaces/user.js'
 import { Topic } from '../interfaces/topic.js'
-import { Photo } from '../interfaces/photo.js'
+import { Photo, PhotoFull } from '../interfaces/photo.js'
 import { RateAgg } from '../interfaces/rate.js'
 import { USER_NICK_REGEXP, USER_GENDERS } from '../constants/user.js'
 import { logger } from '../logger.js'
@@ -195,21 +195,6 @@ export const isPhotoSize = (photoSize: unknown): photoSize is PhotoSize => {
   )
 }
 
-const removeLastMessage = async (ctx: AppContext): Promise<void> => {
-  const navigation = ctx.session.navigation!
-
-  const { messageId, updatable } = navigation
-  if (messageId !== null && !updatable) {
-    try {
-      await ctx.deleteMessage(messageId)
-    } catch (error: unknown) {
-      logger.warn(`Navigation deleteMessage ${messageId} failed`)
-    }
-
-    navigation.messageId = null
-  }
-}
-
 const redrawMessage = async (
   ctx: AppContext,
   handler: () => Promise<{ message_id: number } | undefined>
@@ -236,38 +221,30 @@ export const replyMainCheckGroup = async (
   ctx: AppContext,
   groupUrl: string
 ): Promise<void> => {
-  const navigation = ctx.session.navigation!
-
-  await removeLastMessage(ctx)
-
-  const message = await ctx.reply(
-    `Необходимо подписаться на <a href="${groupUrl}">группу</a>`,
-    {
-      parse_mode: 'HTML',
-      ...keyboardMainCheckGroup()
-    }
-  )
-
-  navigation.messageId = message.message_id
+  await redrawMessage(ctx, async () => {
+    return await ctx.reply(
+      `Необходимо подписаться на <a href="${groupUrl}">группу</a>`,
+      {
+        parse_mode: 'HTML',
+        ...keyboardMainCheckGroup()
+      }
+    )
+  })
 }
 
 export const replyMainCheckChannel = async (
   ctx: AppContext,
   channelUrl: string
 ): Promise<void> => {
-  const navigation = ctx.session.navigation!
-
-  await removeLastMessage(ctx)
-
-  const message = await ctx.reply(
-    `Необходимо подписаться на <a href="${channelUrl}">канал</a>`,
-    {
-      parse_mode: 'HTML',
-      ...keyboardMainCheckChannel()
-    }
-  )
-
-  navigation.messageId = message.message_id
+  await redrawMessage(ctx, async () => {
+    return await ctx.reply(
+      `Необходимо подписаться на <a href="${channelUrl}">канал</a>`,
+      {
+        parse_mode: 'HTML',
+        ...keyboardMainCheckChannel()
+      }
+    )
+  })
 }
 
 export const replyMainMenu = async (ctx: AppContext): Promise<void> => {
@@ -286,409 +263,349 @@ export const replyMainMenu = async (ctx: AppContext): Promise<void> => {
 }
 
 export const replyMainError = async (ctx: AppContext): Promise<void> => {
-  const navigation = ctx.session.navigation!
-
-  await removeLastMessage(ctx)
-
-  const message = await ctx.reply(
-    `Произошла непредвиденная ошибка`,
-    {
-      ...keyboardMainMenu()
-    }
-  )
-
-  navigation.messageId = message.message_id
+  await redrawMessage(ctx, async () => {
+    return await ctx.reply(
+      `Произошла непредвиденная ошибка`,
+      {
+        ...keyboardMainMenu()
+      }
+    )
+  })
 }
 
 export const replyRegisterNick = async (ctx: AppContext): Promise<void> => {
-  const navigation = ctx.session.navigation!
-
-  await removeLastMessage(ctx)
-
-  const message = await ctx.reply(
-    `Выбери ник`,
-    {
-      parse_mode: 'HTML'
-    }
-  )
-
-  navigation.messageId = message.message_id
+  await redrawMessage(ctx, async () => {
+    return await ctx.reply(
+      `Выбери ник`,
+      {
+        parse_mode: 'HTML'
+      }
+    )
+  })
 }
 
 export const replyRegisterNickUsed = async (ctx: AppContext): Promise<void> => {
-  const navigation = ctx.session.navigation!
-
-  await removeLastMessage(ctx)
-
-  const message = await ctx.reply(
-    `Этот ник уже используется, выбери другой`,
-    {
-      parse_mode: 'HTML'
-    }
-  )
-
-  navigation.messageId = message.message_id
+  await redrawMessage(ctx, async () => {
+    return await ctx.reply(
+      `Этот ник уже используется, выбери другой`,
+      {
+        parse_mode: 'HTML'
+      }
+    )
+  })
 }
 
 export const replyRegisterNickWrong = async (ctx: AppContext): Promise<void> => {
-  const navigation = ctx.session.navigation!
-
-  await removeLastMessage(ctx)
-
-  const message = await ctx.reply(
-    `Некорректный ник, попробуй еще раз`,
-    {
-      parse_mode: 'HTML'
-    }
-  )
-
-  navigation.messageId = message.message_id
+  await redrawMessage(ctx, async () => {
+    return await ctx.reply(
+      `Некорректный ник, попробуй еще раз`,
+      {
+        parse_mode: 'HTML'
+      }
+    )
+  })
 }
 
 export const replyRegisterGender = async (ctx: AppContext): Promise<void> => {
-  const navigation = ctx.session.navigation!
-
-  await removeLastMessage(ctx)
-
-  const message = await ctx.reply(
-    `Укажи пол`,
-    {
-      parse_mode: 'HTML',
-      ...keyboardRegisterGender()
-    }
-  )
-
-  navigation.messageId = message.message_id
+  await redrawMessage(ctx, async () => {
+    return await ctx.reply(
+      `Укажи пол`,
+      {
+        parse_mode: 'HTML',
+        ...keyboardRegisterGender()
+      }
+    )
+  })
 }
 
 export const replyRegisterAvatar = async (ctx: AppContext): Promise<void> => {
-  const navigation = ctx.session.navigation!
-
-  await removeLastMessage(ctx)
-
-  const message = await ctx.reply(
-    `Загрузи фото для аватара`,
-    {
-      parse_mode: 'HTML'
-    }
-  )
-
-  navigation.messageId = message.message_id
+  await redrawMessage(ctx, async () => {
+    return await ctx.reply(
+      `Загрузи фото для аватара`,
+      {
+        parse_mode: 'HTML'
+      }
+    )
+  })
 }
 
 export const replyRegisterAbout = async (ctx: AppContext): Promise<void> => {
-  const navigation = ctx.session.navigation!
-
-  await removeLastMessage(ctx)
-
-  const message = await ctx.reply(
-    `Расскажи о себе`,
-    {
-      parse_mode: 'HTML'
-    }
-  )
-
-  navigation.messageId = message.message_id
+  await redrawMessage(ctx, async () => {
+    return await ctx.reply(
+      `Расскажи о себе`,
+      {
+        parse_mode: 'HTML'
+      }
+    )
+  })
 }
 
 export const replyRegisterAboutWrong = async (ctx: AppContext): Promise<void> => {
-  const navigation = ctx.session.navigation!
-
-  await removeLastMessage(ctx)
-
-  const message = await ctx.reply(
-    `Некорректный ввод, попробуй еще раз`,
-    {
-      parse_mode: 'HTML'
-    }
-  )
-
-  navigation.messageId = message.message_id
+  await redrawMessage(ctx, async () => {
+    return await ctx.reply(
+      `Некорректный ввод, попробуй еще раз`,
+      {
+        parse_mode: 'HTML'
+      }
+    )
+  })
 }
 
 export const replyProfileMenu = async (
   ctx: AppContext,
   userFull: UserFull
 ): Promise<void> => {
-  const navigation = ctx.session.navigation!
+  await redrawMessage(ctx, async () => {
+    const {
+      emojiGender,
+      nick,
+      avatarTgFileId,
+      about
+    } = userFull
 
-  await removeLastMessage(ctx)
+    const caption = `${emojiGender} <b>${nick}</b>\n` + 
+      `О себе: ${about}`
 
-  const {
-    emojiGender,
-    nick,
-    avatarTgFileId,
-    about
-  } = userFull
-
-  const caption = `${emojiGender} <b>${nick}</b>\n` + 
-    `О себе: ${about}`
-
-  const message = await ctx.sendPhoto(
-    avatarTgFileId,
-    {
-      caption,
-      parse_mode: 'HTML',
-      ...keyboardProfileMenu()
-    }
-  )
-
-  navigation.messageId = message.message_id
+    return await ctx.sendPhoto(
+      avatarTgFileId,
+      {
+        caption,
+        parse_mode: 'HTML',
+        ...keyboardProfileMenu()
+      }
+    )
+  })
 }
 
 export const replyChangeAvatarAvatar = async (ctx: AppContext): Promise<void> => {
-  const navigation = ctx.session.navigation!
-
-  await removeLastMessage(ctx)
-
-  const message = await ctx.reply(
-    `Загрузи новый аватар`,
-    {
-      parse_mode: 'HTML',
-      ...keyboardChangeAvatarAvatar()
-    }
-  )
-
-  navigation.messageId = message.message_id
+  await redrawMessage(ctx, async () => {
+    return await ctx.reply(
+      `Загрузи новый аватар`,
+      {
+        parse_mode: 'HTML',
+        ...keyboardChangeAvatarAvatar()
+      }
+    )
+  })
 }
 
 export const replyChangeAboutAbout = async (ctx: AppContext): Promise<void> => {
-  const navigation = ctx.session.navigation!
-
-  await removeLastMessage(ctx)
-
-  const message = await ctx.reply(
-    `Расскажи о себе`,
-    {
-      parse_mode: 'HTML',
-      ...keyboardChangeAboutAbout()
-    }
-  )
-
-  navigation.messageId = message.message_id
+  await redrawMessage(ctx, async () => {
+    return await ctx.reply(
+      `Расскажи о себе`,
+      {
+        parse_mode: 'HTML',
+        ...keyboardChangeAboutAbout()
+      }
+    )
+  })
 }
 
 export const replyChangeAboutAboutWrong = async (ctx: AppContext): Promise<void> => {
-  const navigation = ctx.session.navigation!
-
-  await removeLastMessage(ctx)
-
-  const message = await ctx.reply(
-    `Некорректный ввод, попробуй еще раз`,
-    {
-      ...keyboardChangeAboutAbout()
-    }
-  )
-
-  navigation.messageId = message.message_id
+  await redrawMessage(ctx, async () => {
+    return await ctx.reply(
+      `Некорректный ввод, попробуй еще раз`,
+      {
+        ...keyboardChangeAboutAbout()
+      }
+    )
+  })
 }
 
 export const replyPhotoMenu = async (
   ctx: AppContext,
   user: User,
-  photos: Photo[]
+  photosFull: PhotoFull[]
 ): Promise<void> => {
   const navigation = ctx.session.navigation!
 
-  await removeLastMessage(ctx)
+  await redrawMessage(ctx, async () => {
+    if (photosFull.length > 0) {
+      navigation.totalPages = photosFull.length
 
-  if (photos.length > 0) {
-    navigation.totalPages = photos.length
-
-    if (navigation.currentPage < 1) {
-      navigation.currentPage = 1
-    } else if (navigation.currentPage > navigation.totalPages) {
-      navigation.currentPage = navigation.totalPages
-    }
-
-    const photo = photos[navigation.currentPage - 1]
-    if (photo === undefined) {
-      throw new Error(`can't get user photo by index`)
-    }
-
-    const caption = `${photo.description}\n` +
-      `Фото ${navigation.currentPage} из ${navigation.totalPages}`
-
-    const keyboard = keyboardPhotoMenu(navigation, photo)
-
-    if (navigation.updatable) {
-      await ctx.editMessageMedia(
-        {
-          type: 'photo',
-          media: photo.tgFileId
-        },
-        {
-          ...keyboard
-        }
-      )
-
-      await ctx.editMessageCaption(
-        caption,
-        {
-          parse_mode: 'HTML',
-          ...keyboard
-        }
-      )
-    } else {
-      navigation.updatable = true
-
-      const message = await ctx.sendPhoto(
-        photo.tgFileId,
-        {
-          caption,
-          parse_mode: 'HTML',
-          ...keyboard
-        }
-      )
-
-      navigation.messageId = message.message_id
-    }
-  } else {
-    const message = await ctx.reply(
-      `У тебя нет опубликованных фото\n` +
-      `Отправь мне фото для публикации\n` +
-      `Ты можешь загрузить 3 фото в течении 24 часов`,
-      {
-        parse_mode: 'HTML',
-        ...keyboardPhotoBlank()
+      if (navigation.currentPage < 1) {
+        navigation.currentPage = 1
+      } else if (navigation.currentPage > navigation.totalPages) {
+        navigation.currentPage = navigation.totalPages
       }
-    )
 
-    navigation.messageId = message.message_id
-  }
+      const photoFull = photosFull[navigation.currentPage - 1]
+      if (photoFull === undefined) {
+        throw new Error(`can't get user photo by index`)
+      }
+
+      const { currentPage, totalPages } = navigation
+      const {
+        id: photoId,
+        topicName,
+        channelTgChatId,
+        channelTgMessageId,
+        tgFileId,
+        description
+      } = photoFull
+
+      const caption =
+        `Описание: ${description}\n` +
+        `Раздел: #${topicName}\n` +
+        `Фото ${currentPage} из ${totalPages}`
+
+      const keyboard = keyboardPhotoMenu(
+        currentPage,
+        totalPages,
+        photoId,
+        channelTgChatId,
+        channelTgMessageId
+      )
+
+      if (navigation.updatable) {
+        await ctx.editMessageMedia(
+          {
+            type: 'photo',
+            media: photoFull.tgFileId
+          },
+          {
+            ...keyboard
+          }
+        )
+
+        await ctx.editMessageCaption(
+          caption,
+          {
+            parse_mode: 'HTML',
+            ...keyboard
+          }
+        )
+      } else {
+        navigation.updatable = true
+
+        return await ctx.sendPhoto(
+          photoFull.tgFileId,
+          {
+            caption,
+            parse_mode: 'HTML',
+            ...keyboard
+          }
+        )
+      }
+    } else {
+      return await ctx.reply(
+        `У тебя нет опубликованных фото\n` +
+        `Отправь мне фото для публикации\n` +
+        `Ты можешь загрузить 3 фото в течении 24 часов`,
+        {
+          parse_mode: 'HTML',
+          ...keyboardPhotoBlank()
+        }
+      )
+    }
+
+    return undefined
+  })
 }
 
 export const replyNewPhotoPhoto = async (ctx: AppContext): Promise<void> => {
-  const navigation = ctx.session.navigation!
-
-  await removeLastMessage(ctx)
-
-  const message = await ctx.reply(
-    `Загрузи фотографию`,
-    {
-      parse_mode: 'HTML',
-      ...keyboardNewPhotoPhoto()
-    }
-  )
-
-  navigation.messageId = message.message_id
+  await redrawMessage(ctx, async () => {
+    return await ctx.reply(
+      `Загрузи фотографию`,
+      {
+        parse_mode: 'HTML',
+        ...keyboardNewPhotoPhoto()
+      }
+    )
+  })
 }
 
 export const replyNewPhotoTopics = async (
   ctx: AppContext,
   topics: Topic[]
 ): Promise<void> => {
-  const navigation = ctx.session.navigation!
-
-  await removeLastMessage(ctx)
-
-  const message = await ctx.reply(
-    `Выбери раздел`,
-    {
-      parse_mode: 'HTML',
-      ...keyboardNewPhotoTopics(topics)
-    }
-  )
-
-  navigation.messageId = message.message_id
+  await redrawMessage(ctx, async () => {
+    return await ctx.reply(
+      `Выбери раздел`,
+      {
+        parse_mode: 'HTML',
+        ...keyboardNewPhotoTopics(topics)
+      }
+    )
+  })
 }
 
 export const replyNewPhotoDescription = async (ctx: AppContext): Promise<void> => {
-  const navigation = ctx.session.navigation!
-
-  await removeLastMessage(ctx)
-
-  const message = await ctx.reply(
-    `Описание для фото`,
-    {
-      parse_mode: 'HTML',
-      ...keyboardNewPhotoDescription()
-    }
-  )
-
-  navigation.messageId = message.message_id
+  await redrawMessage(ctx, async () => {
+    return await ctx.reply(
+      `Описание для фото`,
+      {
+        parse_mode: 'HTML',
+        ...keyboardNewPhotoDescription()
+      }
+    )
+  })
 }
 
 export const replyNewPhotoDescriptionWrong = async (ctx: AppContext): Promise<void> => {
-  const navigation = ctx.session.navigation!
-
-  await removeLastMessage(ctx)
-
-  const message = await ctx.reply(
-    `Некорректный ввод, попробуй еще раз`,
-    {
-      parse_mode: 'HTML',
-      ...keyboardNewPhotoDescription()
-    }
-  )
-
-  navigation.messageId = message.message_id
+  await redrawMessage(ctx, async () => {
+    return await ctx.reply(
+      `Некорректный ввод, попробуй еще раз`,
+      {
+        parse_mode: 'HTML',
+        ...keyboardNewPhotoDescription()
+      }
+    )
+  })
 }
 
 export const replyNewPhotoPublish = async (
   ctx: AppContext,
   newPhoto: NewPhoto
 ): Promise<void> => {
-  const navigation = ctx.session.navigation!
+  await redrawMessage(ctx, async () => {
+    const { topicName, tgFileId, description } = newPhoto
 
-  await removeLastMessage(ctx)
+    const caption = `Опубликовать фото?\n` +
+      `Раздел: ${topicName}\n` +
+      `Описание: ${description}`
 
-  const { topicName, tgFileId, description } = newPhoto
-
-  const caption = `Опубликовать фото?\n` +
-    `Раздел: ${topicName}\n` +
-    `Описание: ${description}`
-
-  const message = await ctx.sendPhoto(
-    tgFileId,
-    {
-      caption,
-      parse_mode: 'HTML',
-      ...keyboardNewPhotoPublish(),
-    }
-  )
-
-  navigation.messageId = message.message_id
+    return await ctx.sendPhoto(
+      tgFileId,
+      {
+        caption,
+        parse_mode: 'HTML',
+        ...keyboardNewPhotoPublish(),
+      }
+    )
+  })
 }
 
 export const replyDeletePhotoPhoto = async (
   ctx: AppContext,
   photo: Photo
 ): Promise<void> => {
-  const navigation = ctx.session.navigation!
+  await redrawMessage(ctx, async () => {
+    const { tgFileId, description } = photo
 
-  await removeLastMessage(ctx)
+    const caption = `Точно удалить это фото?\n` + description
 
-  const { tgFileId, description } = photo
-
-  const caption = `Точно удалить это фото?\n` + description
-
-  const message = await ctx.sendPhoto(
-    tgFileId,
-    {
-      caption,
-      parse_mode: 'HTML',
-      ...keyboardDeletePhotoPhoto()
-    }
-  )
-
-  navigation.messageId = message.message_id
+    return await ctx.sendPhoto(
+      tgFileId,
+      {
+        caption,
+        parse_mode: 'HTML',
+        ...keyboardDeletePhotoPhoto()
+      }
+    )
+  })
 }
 
 export const replySearchWelcome = async (ctx: AppContext): Promise<void> => {
-  const navigation = ctx.session.navigation!
-
-  await removeLastMessage(ctx)
-
-  const message = await ctx.reply(
-    `Введи ник для поиска`,
-    {
-      parse_mode: 'HTML',
-      ...keyboardSearchWelcome(),
-    }
-  )
-
-  navigation.messageId = message.message_id
+  await redrawMessage(ctx, async () => {
+    return await ctx.reply(
+      `Введи ник для поиска`,
+      {
+        parse_mode: 'HTML',
+        ...keyboardSearchWelcome(),
+      }
+    )
+  })
 }
 
 export const replySearchNickWrong = async (ctx: AppContext): Promise<void> => {
@@ -749,13 +666,13 @@ export const replySearchUserFound = async (
 export const replyShowUserMenu = async (
   ctx: AppContext,
   userFull: UserFull,
-  photos: Photo[]
+  photosFull: PhotoFull[]
 ): Promise<void> => {
   const navigation = ctx.session.navigation!
 
   await redrawMessage(ctx, async () => {
-    if (photos.length > 0) {
-      navigation.totalPages = photos.length
+    if (photosFull.length > 0) {
+      navigation.totalPages = photosFull.length
 
       if (navigation.currentPage < 1) {
         navigation.currentPage = 1
@@ -763,16 +680,23 @@ export const replyShowUserMenu = async (
         navigation.currentPage = navigation.totalPages
       }
 
-      const photo = photos[navigation.currentPage - 1]
-      if (photo === undefined) {
+      const photoFull = photosFull[navigation.currentPage - 1]
+      if (photoFull === undefined) {
         throw new Error(`can't get user photo by index`)
       }
 
       const { currentPage, totalPages } = navigation
-      const { channelTgChatId, channelTgMessageId, tgFileId, description } = photo
+      const {
+        topicName,
+        channelTgChatId,
+        channelTgMessageId,
+        tgFileId,
+        description
+      } = photoFull
 
       const caption =
         `Описание: ${description}\n` +
+        `Раздел: #${topicName}\n` +
         `Фото ${currentPage} из ${totalPages}`
 
       const keyboard = keyboardShowUserMenu(
@@ -826,35 +750,6 @@ export const replyShowUserMenu = async (
   })
 }
 
-export const postNewPhotoGroup = async (
-  ctx: AppContext,
-  user: User,
-  newPhoto: NewPhoto
-): Promise<number> => {
-  const { nick, emojiGender } = user
-  const {
-    groupTgChatId,
-    groupTgThreadId,
-    tgFileId,
-    description
-  } = newPhoto
-
-  const caption = `${emojiGender} <b>${nick}</b>\n` + description
-
-  const message = await ctx.telegram.sendPhoto(
-    groupTgChatId,
-    tgFileId,
-    {
-      message_thread_id: groupTgThreadId,
-      caption,
-      parse_mode: 'HTML',
-      ...keyboardNewPhotoGroup(newPhoto),
-    }
-  )
-
-  return message.message_id
-}
-
 export const postNewPhotoChannel = async (
   ctx: AppContext,
   user: User,
@@ -884,6 +779,41 @@ export const postNewPhotoChannel = async (
   return message.message_id
 }
 
+export const postNewPhotoGroup = async (
+  ctx: AppContext,
+  user: User,
+  newPhoto: NewPhoto
+): Promise<number> => {
+  const { nick, emojiGender } = user
+  const {
+    groupTgChatId,
+    groupTgThreadId,
+    channelTgChatId,
+    channelTgMessageId,
+    tgFileId,
+    description
+  } = newPhoto
+
+  if (channelTgMessageId == null) {
+    throw new Error(`channelTgMessageId unknown`)
+  }
+
+  const caption = `${emojiGender} <b>${nick}</b>\n` + description
+
+  const message = await ctx.telegram.sendPhoto(
+    groupTgChatId,
+    tgFileId,
+    {
+      message_thread_id: groupTgThreadId,
+      caption,
+      parse_mode: 'HTML',
+      ...keyboardPhotoGroup(channelTgChatId, channelTgMessageId),
+    }
+  )
+
+  return message.message_id
+}
+
 export const updatePhotoGroup = async (
   ctx: AppContext,
   user: User,
@@ -895,6 +825,8 @@ export const updatePhotoGroup = async (
     groupTgChatId,
     groupTgThreadId,
     groupTgMessageId,
+    channelTgChatId,
+    channelTgMessageId,
     description
   } = photo
 
@@ -922,7 +854,7 @@ export const updatePhotoGroup = async (
     {
       message_thread_id: groupTgThreadId,
       parse_mode: 'HTML',
-      ...keyboardUpdatePhotoGroup(photo)
+      ...keyboardPhotoGroup(channelTgChatId, channelTgMessageId)
     }
   )
 }
@@ -976,19 +908,18 @@ const keyboardChangeAboutAbout = () => {
 }
 
 const keyboardPhotoMenu = (
-  navigation: Navigation,
-  photo: Photo
+  currentPage: number,
+  totalPages: number,
+  photoId: number,
+  channelTgChatId: number,
+  channelTgMessageId: number
 ) => {
-  const prevButton = navigation.currentPage !== 1 ? '<<' : ' '
-  const nextButton = navigation.currentPage !== navigation.totalPages ? '>>' : ' '
+  const prevButton = currentPage !== 1 ? '<<' : ' '
+  const nextButton = currentPage !== totalPages ? '>>' : ' '
 
-  const {
-    channelTgChatId,
-    channelTgMessageId: messageId
-  } = photo
-
-  const chatId = Math.abs(channelTgChatId).toString().replace(/^100/, '')
-  const url = `https://t.me/c/${chatId}/${messageId}`
+  const channelTgChatIdFix =
+    Math.abs(channelTgChatId).toString().replace(/^100/, '')
+  const url = `https://t.me/c/${channelTgChatIdFix}/${channelTgMessageId}`
 
   return Markup.inlineKeyboard([
     [
@@ -996,7 +927,7 @@ const keyboardPhotoMenu = (
       Markup.button.url('*', url),
       Markup.button.callback(nextButton, 'photo-next')
     ],
-    [Markup.button.callback('Удалить', `photo-delete-${photo.id}`)],
+    [Markup.button.callback('Удалить', `photo-delete-${photoId}`)],
     [Markup.button.callback('Добавить', 'photo-new')],
     [Markup.button.callback('Вернуться в главное меню', 'photo-back')]
   ])
@@ -1100,24 +1031,10 @@ export const keyboardShowUserBlank = () => {
   ])
 }
 
-const keyboardNewPhotoGroup = (newPhoto: NewPhoto) => {
-  const { channelTgChatId, channelTgMessageId } = newPhoto
-
-  const chatId = Math.abs(channelTgChatId).toString().replace(/^100/, '')
-  const url = `https://t.me/c/${chatId}/${channelTgMessageId}`
-
-  return Markup.inlineKeyboard([
-    [Markup.button.callback('\u{1F92A} Шокирует', 'rate-shock')],
-    [Markup.button.callback('\u{1F60D} Восхищяет', 'rate-amazing')],
-    [Markup.button.callback('\u{1F970} Умиляет', 'rate-cute')],
-    [Markup.button.callback('\u{1F627} Не уместно', 'rate-not_appropriate')],
-    [Markup.button.url('Комментарии', url)]
-  ])
-}
-
-const keyboardUpdatePhotoGroup = (photo: Photo) => {
-  const { channelTgChatId, channelTgMessageId } = photo
-
+const keyboardPhotoGroup = (
+  channelTgChatId: number,
+  channelTgMessageId: number
+) => {
   const chatId = Math.abs(channelTgChatId).toString().replace(/^100/, '')
   const url = `https://t.me/c/${chatId}/${channelTgMessageId}`
 

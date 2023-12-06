@@ -5,13 +5,14 @@ import {
   RowUserFull,
   RowTopic,
   RowPhoto,
+  RowPhotoFull,
   RowRate,
   RowRateAgg,
   RowComment
 } from '../interfaces/postgres.js'
 import { UserGender, User, UserFull } from '../interfaces/user.js'
 import { Topic } from '../interfaces/topic.js'
-import { Photo } from '../interfaces/photo.js'
+import { Photo, PhotoFull } from '../interfaces/photo.js'
 import { Rate, RateAgg } from '../interfaces/rate.js'
 import { Comment } from '../interfaces/comment.js'
 import {
@@ -233,16 +234,90 @@ export const buildPhoto = (rowPhoto: RowPhoto): Photo => {
   return photo
 }
 
-export const isRowsPhotos = (rowsPhotos: unknown): rowsPhotos is RowPhoto[] => {
+export const isRowPhotoFull = (row: unknown): row is RowPhotoFull => {
   return (
-    rowsPhotos != null &&
-    Array.isArray(rowsPhotos) &&
-    rowsPhotos.every((rowPhoto) => isRowPhoto(rowPhoto))
+    row != null &&
+    typeof row === 'object' &&
+    'id' in row &&
+    typeof row.id === 'number' &&
+    'user_id' in row &&
+    typeof row.user_id === 'number' &&
+    'user_nick' in row &&
+    typeof row.user_nick === 'string' &&
+    'user_gender' in row &&
+    typeof row.user_gender === 'string' &&
+    'user_status' in row &&
+    typeof row.user_status === 'string' &&
+    'user_role' in row &&
+    typeof row.user_role === 'string' &&
+    'user_avatar_tg_file_id' in row &&
+    typeof row.user_avatar_tg_file_id === 'string' &&
+    'topic_id' in row &&
+    typeof row.topic_id === 'number' &&
+    'topic_name' in row &&
+    typeof row.topic_name === 'string' &&
+    'topic_status' in row &&
+    typeof row.topic_status === 'string' &&
+    'group_tg_chat_id' in row &&
+    typeof row.group_tg_chat_id === 'number' &&
+    'group_tg_thread_id' in row &&
+    typeof row.group_tg_thread_id === 'number' &&
+    'group_tg_message_id' in row &&
+    typeof row.group_tg_message_id === 'number' &&
+    'channel_tg_chat_id' in row &&
+    typeof row.channel_tg_chat_id === 'number' &&
+    'channel_tg_message_id' in row &&
+    typeof row.channel_tg_message_id === 'number' &&
+    'tg_file_id' in row &&
+    typeof row.tg_file_id === 'string' &&
+    'description' in row &&
+    typeof row.description === 'string' &&
+    'status' in row &&
+    typeof row.status === 'string' &&
+    'create_time' in row &&
+    typeof row.create_time === 'object' &&
+    row.create_time instanceof Date
   )
 }
 
-export const buildPhotos = (rowsPhotos: RowPhoto[]): Photo[] => {
-  return rowsPhotos.map((rowPhoto) => buildPhoto(rowPhoto))
+export const buildPhotoFull = (row: RowPhotoFull): PhotoFull => {
+  const photoFull: PhotoFull = {
+    id: row.id,
+    userId: row.user_id,
+    userNick: row.user_nick,
+    userGender: row.user_gender,
+    userStatus: row.user_status,
+    userRole: row.user_role,
+    userAvatarTgFileId: row.user_avatar_tg_file_id,
+    topicId: row.topic_id,
+    topicName: row.topic_name,
+    topicStatus: row.topic_status,
+    groupTgChatId: row.group_tg_chat_id,
+    groupTgThreadId: row.group_tg_thread_id,
+    groupTgMessageId: row.group_tg_message_id,
+    channelTgChatId: row.channel_tg_chat_id,
+    channelTgMessageId: row.channel_tg_message_id,
+    tgFileId: row.tg_file_id,
+    description: row.description,
+    status: row.status,
+    createTime: row.create_time
+  }
+
+  return photoFull
+}
+
+export const isRowsPhotosFull = (
+  rowsPhotosFull: unknown
+): rowsPhotosFull is RowPhotoFull[] => {
+  return (
+    rowsPhotosFull != null &&
+    Array.isArray(rowsPhotosFull) &&
+    rowsPhotosFull.every((rowPhotoFull) => isRowPhotoFull(rowPhotoFull))
+  )
+}
+
+export const buildPhotosFull = (rowsPhotosFull: RowPhotoFull[]): PhotoFull[] => {
+  return rowsPhotosFull.map((rowPhotoFull) => buildPhotoFull(rowPhotoFull))
 }
 
 export const isRowRate = (rowRate: unknown): rowRate is RowRate => {

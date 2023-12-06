@@ -46,9 +46,9 @@ export class ShowUserController extends BaseController {
       ctx.scene.session.showUser = showUser
 
       const userFull = await this.postgresService.getUserFull(showUser.userId)
-      const photos = await this.postgresService.getPhotosUser(showUser.userId)
+      const photosFull = await this.postgresService.getPhotosFullUser(showUser.userId)
 
-      await replyShowUserMenu(ctx, userFull, photos)
+      await replyShowUserMenu(ctx, userFull, photosFull)
     } else {
       await ctx.scene.leave()
 
@@ -62,9 +62,9 @@ export class ShowUserController extends BaseController {
     this.prevPageNavigation(ctx)
 
     const userFull = await this.postgresService.getUserFull(showUser.userId)
-    const photos = await this.postgresService.getPhotosUser(showUser.userId)
+    const photosFull = await this.postgresService.getPhotosFullUser(showUser.userId)
 
-    await replyShowUserMenu(ctx, userFull, photos)
+    await replyShowUserMenu(ctx, userFull, photosFull)
   }
 
   private nextPhotoHandler: AppContextHandler = async (ctx) => {
@@ -73,8 +73,8 @@ export class ShowUserController extends BaseController {
     this.nextPageNavigation(ctx)
 
     const userFull = await this.postgresService.getUserFull(showUser.userId)
-    const photos = await this.postgresService.getPhotosUser(showUser.userId)
+    const photosFull = await this.postgresService.getPhotosFullUser(showUser.userId)
 
-    await replyShowUserMenu(ctx, userFull, photos)
+    await replyShowUserMenu(ctx, userFull, photosFull)
   }
 }

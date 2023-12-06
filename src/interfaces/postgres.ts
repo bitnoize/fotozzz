@@ -67,6 +67,28 @@ export interface RowPhoto {
   create_time: Date
 }
 
+export interface RowPhotoFull {
+  id: number
+  user_id: number
+  user_nick: string
+  user_gender: UserGender
+  user_status: UserStatus
+  user_role: UserRole
+  user_avatar_tg_file_id: string
+  topic_id: number
+  topic_name: string
+  topic_status: TopicStatus
+  group_tg_chat_id: number
+  group_tg_thread_id: number
+  group_tg_message_id: number
+  channel_tg_chat_id: number
+  channel_tg_message_id: number
+  tg_file_id: string
+  description: string
+  status: PhotoStatus
+  create_time: Date
+}
+
 export interface RowRate {
   id: number
   user_id: number

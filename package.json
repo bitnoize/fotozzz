@@ -1,7 +1,7 @@
 {
   "name": "fotozzz",
   "type": "module",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "Simple telegram bot",
   "main": "dist/main.js",
   "types": "dist/main.d.ts",

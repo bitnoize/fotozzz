@@ -39,12 +39,12 @@ export class DeletePhotoController extends BaseController {
       deletePhoto !== undefined &&
       allowedStatuses.includes(authorize.status)
     ) {
-      const check = await this.postgresService.checkPhotoUser(
+      const photo = await this.postgresService.getPhotoUser(
         deletePhoto.photoId,
         authorize.id
       )
 
-      if (check) {
+      if (photo !== undefined) {
         ctx.scene.session.deletePhoto = deletePhoto
 
         ctx.wizard.next()
@@ -63,9 +63,9 @@ export class DeletePhotoController extends BaseController {
   private quaerePhotoHandler: AppContextHandler = async (ctx) => {
     const deletePhoto = ctx.scene.session.deletePhoto!
 
-    const photo = await this.postgresService.getPhoto(deletePhoto.photoId)
+    const photoFull = await this.postgresService.getPhotoFull(deletePhoto.photoId)
 
-    await replyDeletePhotoPhoto(ctx, photo)
+    await replyDeletePhotoPhoto(ctx, photoFull)
 
     ctx.wizard.next()
   }
@@ -91,33 +91,33 @@ export class DeletePhotoController extends BaseController {
   private answerPhotoUnknownHandler: AppContextHandler = async (ctx) => {
     const deletePhoto = ctx.scene.session.deletePhoto!
 
-    const photo = await this.postgresService.getPhoto(deletePhoto.photoId)
+    const photoFull = await this.postgresService.getPhotoFull(deletePhoto.photoId)
 
-    await replyDeletePhotoPhoto(ctx, photo)
+    await replyDeletePhotoPhoto(ctx, photoFull)
   }
 
   private finishSceneHandler: AppContextHandler = async (ctx) => {
     const authorize = ctx.session.authorize!
     const deletePhoto = ctx.scene.session.deletePhoto!
 
-    const photo = await this.postgresService.getPhoto(deletePhoto.photoId)
+    const photoFull = await this.postgresService.getPhotoFull(deletePhoto.photoId)
 
     try {
       await ctx.telegram.deleteMessage(
-        photo.groupTgChatId,
-        photo.groupTgMessageId
+        photoFull.groupTgChatId,
+        photoFull.groupTgMessageId
       )
 
       await ctx.telegram.deleteMessage(
-        photo.channelTgChatId,
-        photo.channelTgMessageId
+        photoFull.channelTgChatId,
+        photoFull.channelTgMessageId
       )
     } catch (error: unknown) {
       logger.error(error)
     }
 
     await this.postgresService.deletePhotoUser(
-      photo.id,
+      photoFull.id,
       authorize.id,
       ctx.from
     )

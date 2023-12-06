@@ -18,8 +18,8 @@ import {
   replyNewPhotoDescription,
   replyNewPhotoDescriptionWrong,
   replyNewPhotoPublish,
-  postNewPhotoGroup,
-  postNewPhotoChannel
+  postNewPhotoChannel,
+  postNewPhotoGroup
 } from '../helpers/telegram.js'
 import { logger } from '../logger.js'
 
@@ -269,8 +269,8 @@ export class NewPhotoController extends BaseController {
       throw new Error(`photos limit allready exceed`)
     }
 
-    newPhoto.groupTgMessageId = await postNewPhotoGroup(ctx, authorize, newPhoto)
     newPhoto.channelTgMessageId = await postNewPhotoChannel(ctx, authorize, newPhoto)
+    newPhoto.groupTgMessageId = await postNewPhotoGroup(ctx, authorize, newPhoto)
 
     ctx.wizard.next()
 

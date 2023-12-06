@@ -38,9 +38,9 @@ export class PhotoController extends BaseController {
 
     const allowedStatuses = ['active', 'penalty']
     if (allowedStatuses.includes(authorize.status)) {
-      const photos = await this.postgresService.getPhotosUser(authorize.id)
+      const photosFull = await this.postgresService.getPhotosFullUser(authorize.id)
 
-      await replyPhotoMenu(ctx, authorize, photos)
+      await replyPhotoMenu(ctx, authorize, photosFull)
     } else {
       await ctx.scene.leave()
 
@@ -53,9 +53,9 @@ export class PhotoController extends BaseController {
 
     this.prevPageNavigation(ctx)
 
-    const photos = await this.postgresService.getPhotosUser(authorize.id)
+    const photosFull = await this.postgresService.getPhotosFullUser(authorize.id)
 
-    await replyPhotoMenu(ctx, authorize, photos)
+    await replyPhotoMenu(ctx, authorize, photosFull)
   }
 
   private nextPhotoHandler: AppContextHandler = async (ctx) => {
@@ -63,20 +63,18 @@ export class PhotoController extends BaseController {
 
     this.nextPageNavigation(ctx)
 
-    const photos = await this.postgresService.getPhotosUser(authorize.id)
+    const photosFull = await this.postgresService.getPhotosFullUser(authorize.id)
 
-    await replyPhotoMenu(ctx, authorize, photos)
+    await replyPhotoMenu(ctx, authorize, photosFull)
   }
 
   private deletePhotoHandler: AppContextHandler = async (ctx) => {
     const authorize = ctx.session.authorize!
 
-    const photos = await this.postgresService.getPhotosUser(authorize.id)
-
     const photoId = parseInt(ctx.match[1])
 
     if (photoId != null && typeof photoId === 'number') {
-      const photo = photos.find((photo) => photo.id === photoId)
+      const photo = await this.postgresService.getPhotoUser(photoId, authorize.id)
 
       if (photo !== undefined) {
         const deletePhoto: DeletePhoto = {
@@ -86,11 +84,11 @@ export class PhotoController extends BaseController {
         await ctx.scene.leave()
 
         await ctx.scene.enter('delete-photo', { deletePhoto })
-      } else {
-        throw new Error(`can't find photo ${photoId}`)
       }
     } else {
-      await replyPhotoMenu(ctx, authorize, photos)
+      const photosFull = await this.postgresService.getPhotosFullUser(authorize.id)
+
+      await replyPhotoMenu(ctx, authorize, photosFull)
     }
   }
 
