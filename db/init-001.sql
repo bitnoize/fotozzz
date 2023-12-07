@@ -233,8 +233,9 @@ CREATE TABLE comments (
   user_id               INTEGER NOT NULL,
   topic_id              SMALLINT NOT NULL,
   photo_id              INTEGER NOT NULL,
-  channel_tg_chat_id    BIGINT NOT NULL,
-  channel_tg_message_id BIGINT NOT NULL,
+  group_tg_chat_id      BIGINT NOT NULL,
+  group_tg_thread_id    BIGINT NOT NULL,
+  group_tg_message_id   BIGINT NOT NULL,
   status                comment_status NOT NULL,
   text                  TEXT,
   create_time           TIMESTAMPTZ DEFAULT NOW(),
@@ -251,8 +252,8 @@ GRANT USAGE, SELECT ON comments_id_seq TO fotozzz_app;
 CREATE INDEX comments_user_id_key ON comments (user_id);
 CREATE INDEX comments_topic_id_key ON comments (topic_id);
 CREATE INDEX comments_photo_id_key ON comments (photo_id);
-CREATE INDEX comments_channel_tg_chat_id_channel_tg_message_id_key
-  ON comments (channel_tg_chat_id, channel_tg_message_id);
+CREATE INDEX comments_group_tg_key
+  ON comments (group_tg_chat_id, group_tg_thread_id, group_tg_message_id);
 CREATE INDEX comments_create_time_key ON comments (create_time);
 
 CREATE TABLE comment_logs (

@@ -86,6 +86,16 @@ export const parseCommentPhotoRequest = (
   if (
     ctx.message != null &&
     typeof ctx.message === 'object' &&
+    ctx.message.message_id != null &&
+    typeof ctx.message.message_id === 'number' &&
+    ctx.message.message_thread_id != null &&
+    typeof ctx.message.message_thread_id === 'number' &&
+    'chat' in ctx.message &&
+    ctx.message.chat != null &&
+    typeof ctx.message.chat === 'object' &&
+    'id' in ctx.message.chat &&
+    ctx.message.chat.id != null &&
+    typeof ctx.message.chat.id === 'number' &&
     'reply_to_message' in ctx.message &&
     ctx.message.reply_to_message != null &&
     typeof ctx.message.reply_to_message === 'object' &&
@@ -99,6 +109,13 @@ export const parseCommentPhotoRequest = (
     typeof ctx.message.reply_to_message.forward_from_message_id === 'number'
   ) {
     const {
+      message_id: groupTgMessageId,
+      message_thread_id: groupTgThreadId
+    } = ctx.message
+
+    const { id: groupTgChatId } = ctx.message.chat
+
+    const {
       id: channelTgChatId
     } = ctx.message.reply_to_message.forward_from_chat
 
@@ -108,7 +125,14 @@ export const parseCommentPhotoRequest = (
 
     const text = 'text' in ctx.message ? ctx.message.text ?? null : null
 
-    return { channelTgChatId, channelTgMessageId, text }
+    return {
+      groupTgChatId,
+      groupTgThreadId,
+      groupTgMessageId,
+      channelTgChatId,
+      channelTgMessageId,
+      text
+    }
   }
 
   return undefined

@@ -59,6 +59,9 @@ export interface RatePhotoRequest {
 }
 
 export interface CommentPhotoRequest {
+  groupTgChatId: number
+  groupTgThreadId: number
+  groupTgMessageId: number
   channelTgChatId: number
   channelTgMessageId: number
   text: string | null

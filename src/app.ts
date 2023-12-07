@@ -288,10 +288,14 @@ export class App {
 
       if (commentPhotoRequest !== undefined) {
         const {
+          groupTgChatId,
+          groupTgThreadId,
+          groupTgMessageId,
           channelTgChatId,
           channelTgMessageId,
           text
         } = commentPhotoRequest
+        console.dir(commentPhotoRequest)
 
         const photo = await this.postgresService.getPhotoChannel(
           channelTgChatId,
@@ -299,15 +303,32 @@ export class App {
         )
 
         if (photo !== undefined) {
-          const comment = await this.postgresService.newComment(
-            authorize.id,
-            photo.topicId,
-            photo.id,
-            channelTgChatId,
-            channelTgMessageId,
-            text,
-            ctx.from
+          const { nick, emojiGender } = authorize
+
+          ctx.telegram.deleteMessage(
+            groupTgChatId,
+            groupTgMessageId
           )
+
+          const message = await ctx.telegram.sendMessage(
+            groupTgChatId,
+            `${emojiGender} <b>${nick}</b>\n` + text,
+            {
+              message_thread_id: groupTgThreadId
+            }
+          )
+
+          console.dir(message)
+
+          //const comment = await this.postgresService.newComment(
+          //  authorize.id,
+          //  photo.topicId,
+          //  photo.id,
+          //  channelTgChatId,
+          //  channelTgMessageId,
+          //  text,
+          //  ctx.from
+          //)
         } else {
           logger.warn(`CommentPhotoRequest channel photo not found`)
           console.dir(commentPhotoRequest)
